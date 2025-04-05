@@ -19,10 +19,20 @@ self.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
+    "/drivers": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/drivers.js"
+    ],
     "/races": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/races.js"
+    ],
+    "/schedule": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/schedule.js"
     ]
   },
   "ampFirstPages": []

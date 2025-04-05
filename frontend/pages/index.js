@@ -161,7 +161,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="text-center md:text-left mb-4 md:mb-0">
               <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-                F1 Dashboard
+                Monty's F1 Dashboard
               </h1>
               <p className="text-gray-200 text-lg">
                 Comprehensive Formula 1 statistics, race results, and analysis
