@@ -156,7 +156,7 @@ export default function Home() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-8 shadow-xl"
+          className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-8 shadow-xl max-w-7xl mx-auto"
         >
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="text-center md:text-left mb-4 md:mb-0">
@@ -165,6 +165,9 @@ export default function Home() {
               </h1>
               <p className="text-gray-200 text-lg">
                 Comprehensive Formula 1 statistics, race results, and analysis
+              </p>
+              <p className="text-gray-200 text-sm">
+                For feedback, please contact me at <a href="mailto:f1@sourabhpal.com" className="text-white hover:text-gray-300">f1@sourabhpal.com</a>
               </p>
             </div>
             <div className="flex items-center space-x-4">

@@ -65,6 +65,9 @@ def init_db():
                     qualifying_position INTEGER,
                     positions_gained INTEGER,
                     pit_stops INTEGER,
+                    laps INTEGER,
+                    status TEXT,
+                    grid_position INTEGER,
                     PRIMARY KEY (year, round, driver_name)
                 )
             ''')
@@ -149,6 +152,18 @@ def init_db():
             if 'pit_stops' not in columns:
                 logger.info("Adding pit_stops column to driver_standings table")
                 conn.execute('ALTER TABLE driver_standings ADD COLUMN pit_stops INTEGER')
+            
+            if 'laps' not in columns:
+                logger.info("Adding laps column to driver_standings table")
+                conn.execute('ALTER TABLE driver_standings ADD COLUMN laps INTEGER')
+            
+            if 'status' not in columns:
+                logger.info("Adding status column to driver_standings table")
+                conn.execute('ALTER TABLE driver_standings ADD COLUMN status TEXT')
+            
+            if 'grid_position' not in columns:
+                logger.info("Adding grid_position column to driver_standings table")
+                conn.execute('ALTER TABLE driver_standings ADD COLUMN grid_position INTEGER')
             
             # Add index for race positions
             conn.execute('CREATE INDEX IF NOT EXISTS idx_race_positions_year_round ON race_positions(year, round)')
@@ -435,145 +450,40 @@ async def get_team_standings(year: int):
 
 @app.get("/schedule/{year}")
 async def get_schedule(year: int):
-    """Get race schedule for a specific year."""
+    """Get the race schedule for a specific year."""
+    conn = None
     try:
-        with db_lock:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                # First try to get from database
-                cursor.execute("""
-                    SELECT round, name, date, event, country
-                    FROM race_schedule
-                    WHERE year = ?
-                    ORDER BY round
-                """, (year,))
-                
-                events = cursor.fetchall()
-                
-                if not events:
-                    logger.info(f"No schedule found in database for year {year}, fetching from FastF1")
-                    try:
-                        # Try to fetch from FastF1
-                        schedule = fastf1.get_event_schedule(year)
-                        if schedule.empty:
-                            raise HTTPException(status_code=404, detail=f"No races found for year {year}")
-                        
-                        # Convert schedule to list of events
-                        events = []
-                        for _, event in schedule.iterrows():
-                            try:
-                                # Get the event details
-                                event_details = fastf1.get_event(year, event['RoundNumber'])
-                                logger.info(f"Event details for round {event['RoundNumber']}: {event_details}")
-                                
-                                # Handle different possible column names and get event information
-                                round_number = event.get('RoundNumber', event.get('Round', 0))
-                                event_name = event.get('EventName', event.get('Name', 'Unknown'))
-                                official_event_name = event_details.get('OfficialEventName', event_name)
-                                event_date = event.get('EventDate', event.get('Date'))
-                                country = event_details.get('Country', 'Unknown')
-                                
-                                # Format date if it exists
-                                if pd.notna(event_date):
-                                    # Convert to datetime without timezone
-                                    race_date = pd.to_datetime(event_date).tz_localize(None)
-                                    date_str = race_date.strftime('%Y-%m-%d')
-                                else:
-                                    date_str = 'Unknown'
-                                
-                                # Store in database
-                                cursor.execute("""
-                                    INSERT INTO race_schedule (year, round, name, date, event, country)
-                                    VALUES (?, ?, ?, ?, ?, ?)
-                                """, (year, round_number, event_name, date_str, official_event_name, country))
-                                
-                                events.append({
-                                    "round": int(round_number),
-                                    "name": str(event_name),
-                                    "date": date_str,
-                                    "event": str(official_event_name),
-                                    "country": str(country)
-                                })
-                                
-                                logger.info(f"Processed event: Round {round_number}, Event: {official_event_name}")
-                            except Exception as e:
-                                logger.warning(f"Error processing event data: {str(e)}")
-                                continue
-                        
-                        conn.commit()
-                        
-                    except Exception as e:
-                        logger.error(f"Error fetching from FastF1: {str(e)}")
-                        # If FastF1 fails, use fallback data for 2025
-                        if year == 2025:
-                            logger.info("Using fallback data for 2025 season")
-                            fallback_events = [
-                                {
-                                    "round": 1,
-                                    "name": "Australian Grand Prix",
-                                    "date": "2025-03-16",
-                                    "event": "Formula 1 Australian Grand Prix 2025",
-                                    "country": "Australia"
-                                },
-                                {
-                                    "round": 2,
-                                    "name": "Chinese Grand Prix",
-                                    "date": "2025-03-23",
-                                    "event": "Formula 1 Chinese Grand Prix 2025",
-                                    "country": "China"
-                                },
-                                {
-                                    "round": 3,
-                                    "name": "Japanese Grand Prix",
-                                    "date": "2025-04-06",
-                                    "event": "Formula 1 Japanese Grand Prix 2025",
-                                    "country": "Japan"
-                                },
-                                {
-                                    "round": 4,
-                                    "name": "Bahrain Grand Prix",
-                                    "date": "2025-04-13",
-                                    "event": "Formula 1 Gulf Air Bahrain Grand Prix 2025",
-                                    "country": "Bahrain"
-                                },
-                                {
-                                    "round": 5,
-                                    "name": "Saudi Arabian Grand Prix",
-                                    "date": "2025-04-20",
-                                    "event": "Formula 1 STC Saudi Arabian Grand Prix 2025",
-                                    "country": "Saudi Arabia"
-                                }
-                            ]
-                            
-                            # Store fallback data in database
-                            for event in fallback_events:
-                                cursor.execute("""
-                                    INSERT INTO race_schedule (year, round, name, date, event, country)
-                                    VALUES (?, ?, ?, ?, ?, ?)
-                                """, (year, event["round"], event["name"], event["date"], 
-                                     event["event"], event["country"]))
-                            
-                            conn.commit()
-                            events = fallback_events
-                        else:
-                            raise HTTPException(status_code=500, detail=str(e))
-                
-                if not events:
-                    raise HTTPException(status_code=404, detail=f"No valid race events found for year {year}")
-                
-                # Convert database results to the expected format
-                return [{
-                    "round": event[0],
-                    "name": event[1],
-                    "date": event[2],
-                    "event": event[3],
-                    "country": event[4]
-                } for event in events]
-                
+        # Define database path
+        db_path = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT year, round, name, date, event, country
+            FROM race_schedule
+            WHERE year = ?
+            ORDER BY round
+        """, (year,))
+        
+        schedule = []
+        for row in cursor.fetchall():
+            schedule.append({
+                'year': row[0],
+                'round': row[1],
+                'name': row[2],
+                'date': row[3],
+                'event': row[4],
+                'country': row[5]
+            })
+        
+        return schedule
+        
     except Exception as e:
         logger.error(f"Error fetching schedule: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch schedule")
+    finally:
+        if conn:
+            conn.close()
 
 @app.get("/qualifying/{year}/{round}")
 async def get_qualifying_results(year: int, round: int):
@@ -990,113 +900,161 @@ async def get_circuit_preview(year: int):
 
 @app.get("/race-results/{year}/{round}")
 async def get_race_results(year: int, round: int):
-    """Get race results for a specific race."""
+    """Get detailed race results for a specific race."""
     try:
-        with db_lock:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
+        # For 2025 data, use the database
+        if year == 2025:
+            conn = sqlite3.connect('f1_data.db')
+            cursor = conn.cursor()
+            
+            # Get race info
+            cursor.execute("""
+                SELECT name, date, country
+                FROM race_schedule
+                WHERE year = ? AND round = ?
+            """, (year, round))
+            race_info = cursor.fetchone()
+            
+            if not race_info:
+                raise HTTPException(status_code=404, detail="Race not found")
+            
+            # Get driver standings with all necessary fields
+            cursor.execute("""
+                SELECT 
+                    position, 
+                    driver_name, 
+                    team, 
+                    points, 
+                    COALESCE(laps, 0) as laps,
+                    COALESCE(status, 'Finished') as status,
+                    COALESCE(grid_position, position) as grid_position,
+                    COALESCE(pit_stops, 0) as pit_stops,
+                    COALESCE(fastest_lap_time, 'N/A') as fastest_lap_time,
+                    COALESCE(driver_color, '#ff0000') as driver_color,
+                    COALESCE(qualifying_position, grid_position) as qualifying_position
+                FROM driver_standings
+                WHERE year = ? AND round = ?
+                ORDER BY position
+            """, (year, round))
+            
+            results = []
+            for row in cursor.fetchall():
+                # Calculate positions gained
+                positions_gained = row[10] - row[0] if row[10] is not None else 0
                 
-                # First try to get from database
-                cursor.execute("""
-                    SELECT position, driver_name, team, points, driver_color, driver_number,
-                           fastest_lap_time, qualifying_position, positions_gained, pit_stops
-                    FROM driver_standings
-                    WHERE year = ? AND round = ?
-                    ORDER BY position
-                """, (year, round))
-                
-                results = cursor.fetchall()
-                
-                if results:
-                    return [{
-                        "position": row[0],
-                        "driver_name": row[1],
-                        "team": row[2],
-                        "points": row[3],
-                        "driver_color": row[4],
-                        "driver_number": row[5],
-                        "fastest_lap_time": row[6],
-                        "qualifying_position": row[7],
-                        "positions_gained": row[8],
-                        "pit_stops": row[9]
-                    } for row in results]
-                
-                # If not in database, fetch from FastF1
-                try:
-                    session = fastf1.get_session(year, round, 'R')
-                    session.load()
-                    results = session.results
-                    
-                    # For 2025, simulate pit stops and fastest lap times
-                    if year == 2025:
-                        logger.info("Using simulated data for 2025 race")
-                        np.random.seed(round)  # Use round number as seed for consistent results
-                        
-                        # Simulate pit stops for each driver (1-3 stops)
-                        pit_stops = {}
-                        for driver in results['DriverNumber']:
-                            pit_stops[driver] = np.random.randint(1, 4)
-                        
-                        formatted_results = []
-                        for _, row in results.iterrows():
-                            # Simulate fastest lap time (between 1:30 and 1:35)
-                            minutes = 1
-                            seconds = np.random.randint(30, 36)
-                            milliseconds = np.random.randint(0, 1000)
-                            fastest_lap = f"{minutes}:{seconds:02d}.{milliseconds:03d}"
-                            
-                            # Format team colors to include '#' prefix
-                            team_color = f"#{row['TeamColor']}" if pd.notna(row['TeamColor']) and not str(row['TeamColor']).startswith('#') else row['TeamColor']
-                            
-                            # Calculate positions gained
-                            quali_pos = row.get('QualifyingPosition', row['GridPosition'])
-                            positions_gained = int(quali_pos - row['Position']) if pd.notna(quali_pos) else 0
-                            
-                            result = {
-                                "position": int(row['Position']),
-                                "driver_name": row['FullName'],
-                                "team": row['TeamName'],
-                                "points": float(row['Points']),
-                                "driver_color": team_color,
-                                "driver_number": int(row['DriverNumber']),
-                                "fastest_lap_time": fastest_lap,
-                                "qualifying_position": int(quali_pos) if pd.notna(quali_pos) else 20,
-                                "positions_gained": positions_gained,
-                                "pit_stops": pit_stops[row['DriverNumber']]
-                            }
-                            formatted_results.append(result)
-                            
-                            # Store in database
-                            cursor.execute("""
-                                INSERT INTO driver_standings (
-                                    year, round, position, driver_name, team, points,
-                                    driver_color, driver_number, fastest_lap_time,
-                                    qualifying_position, positions_gained, pit_stops
-                                )
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (
-                                year, round, result['position'], result['driver_name'],
-                                result['team'], result['points'], result['driver_color'],
-                                result['driver_number'], result['fastest_lap_time'],
-                                result['qualifying_position'], result['positions_gained'],
-                                result['pit_stops']
-                            ))
-                        
-                        conn.commit()
-                        return formatted_results
-                    
-                    # For other years, use actual data
-                    else:
-                        # ... rest of the existing code for non-2025 years ...
+                # Format fastest lap time if available
+                fastest_lap = row[8]
+                if fastest_lap and fastest_lap != 'N/A':
+                    try:
+                        # Try to parse the time and format it
+                        if ':' in fastest_lap:
+                            # Already in MM:SS.mmm format
+                            pass
+                        else:
+                            # Convert seconds to MM:SS.mmm format
+                            seconds = float(fastest_lap)
+                            minutes = int(seconds // 60)
+                            remaining_seconds = seconds % 60
+                            fastest_lap = f"{minutes}:{remaining_seconds:06.3f}"
+                    except:
+                        # If parsing fails, keep the original value
                         pass
-                        
-                except Exception as e:
-                    logger.error(f"Error fetching race results: {str(e)}")
-                    raise HTTPException(status_code=404, detail="Race results not found")
-                    
+                
+                results.append({
+                    'position': row[0],
+                    'driver': row[1],
+                    'team': row[2],
+                    'points': row[3],
+                    'laps': row[4],
+                    'status': row[5],
+                    'grid': row[6],
+                    'pit_stops': row[7],
+                    'fastest_lap': fastest_lap,
+                    'team_color': row[9],
+                    'positions_gained': positions_gained
+                })
+            
+            conn.close()
+            return {
+                'race_name': race_info[0],
+                'date': race_info[1],
+                'country': race_info[2],
+                'results': results
+            }
+        else:
+            # For historical years (2020-2024), use FastF1 API
+            session = fastf1.get_session(year, round, 'R')
+            session.load(weather=False, messages=False, laps=True)
+            
+            # Get race info
+            race_info = {
+                'race_name': session.event['EventName'],
+                'date': session.date.strftime('%Y-%m-%d'),
+                'country': session.event['Country']
+            }
+            
+            # Get results
+            results = []
+            for driver in session.drivers:
+                driver_info = session.get_driver(driver)
+                car_data = session.car_data[driver]
+                
+                # Get driver's fastest lap
+                driver_laps = session.laps.pick_drivers(driver)
+                fastest_lap = driver_laps['LapTime'].min()
+                
+                # Format fastest lap time
+                if pd.notnull(fastest_lap):
+                    fastest_lap_str = str(fastest_lap)
+                    if ':' not in fastest_lap_str:
+                        # Convert seconds to MM:SS.mmm format
+                        seconds = float(fastest_lap_str)
+                        minutes = int(seconds // 60)
+                        remaining_seconds = seconds % 60
+                        fastest_lap_str = f"{minutes}:{remaining_seconds:06.3f}"
+                else:
+                    fastest_lap_str = 'N/A'
+                
+                # Get pit stops
+                pit_data = session.pits
+                pit_stops = len(pit_data[pit_data['Driver'] == driver]) if pit_data is not None else 0
+                
+                # Get team color
+                team_color = driver_info.get('TeamColor', '#ff0000')
+                if team_color and not team_color.startswith('#'):
+                    team_color = f'#{team_color}'
+                
+                # Calculate positions gained
+                grid_position = driver_info.get('GridPosition', driver_info['Position'])
+                positions_gained = grid_position - driver_info['Position']
+                
+                results.append({
+                    'position': driver_info['Position'],
+                    'driver': f"{driver_info['FirstName']} {driver_info['LastName']}",
+                    'team': driver_info['TeamName'],
+                    'points': driver_info['Points'],
+                    'laps': len(driver_laps),
+                    'status': driver_info['Status'],
+                    'grid': grid_position,
+                    'pit_stops': pit_stops,
+                    'fastest_lap': fastest_lap_str,
+                    'team_color': team_color,
+                    'positions_gained': positions_gained
+                })
+            
+            # Sort results by position
+            results.sort(key=lambda x: x['position'])
+            
+            return {
+                'race_name': race_info['race_name'],
+                'date': race_info['date'],
+                'country': race_info['country'],
+                'results': results
+            }
+            
     except Exception as e:
-        logger.error(f"Error in get_race_results: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching race results: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch race results")
 
 @app.get("/circuits/{year}")
 async def get_circuits(year: int):

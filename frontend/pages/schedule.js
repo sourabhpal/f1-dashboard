@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import Head from 'next/head';
 import Navbar from '../components/Navbar';
 import RaceResultsModal from '../components/RaceResultsModal';
+import YearSelector from '../components/YearSelector';
+import axios from 'axios';
 
 // Country flag mapping
 const countryFlags = {
@@ -51,37 +53,38 @@ const Schedule = () => {
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedRace, setSelectedRace] = useState(null);
   const [raceResults, setRaceResults] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const years = [2020, 2021, 2022, 2023, 2024, 2025];
 
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
-        const response = await fetch('http://localhost:8000/schedule/2025');
-        if (!response.ok) {
-          throw new Error('Failed to fetch schedule');
-        }
-        const data = await response.json();
-        setSchedule(data);
+        setLoading(true);
+        const response = await axios.get(`http://localhost:8000/schedule/${selectedYear}`);
+        setSchedule(response.data);
+        setError(null);
       } catch (err) {
-        setError(err.message);
+        setError('Failed to load schedule data');
+        console.error('Error fetching schedule:', err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchSchedule();
-  }, []);
+  }, [selectedYear]);
 
   const handleRaceClick = async (race) => {
     try {
-      const response = await fetch(`http://localhost:8000/race-results/2025/${race.round}`);
+      const response = await fetch(`http://localhost:8000/race-results/${selectedYear}/${race.round}`);
       if (!response.ok) {
         throw new Error('Failed to fetch race results');
       }
       const data = await response.json();
-      setRaceResults(data);
+      setRaceResults(data.results);
       setSelectedRace(race);
       setIsModalOpen(true);
     } catch (error) {
@@ -89,6 +92,31 @@ const Schedule = () => {
       setError('Failed to load race results');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+            <p className="mt-4 text-gray-400">Loading schedule...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-900 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center text-red-500">
+            <p>{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -99,44 +127,46 @@ const Schedule = () => {
 
       <Navbar />
 
-      <main className="py-12">
+      <main className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-bold text-white mb-8">2025 F1 Race Schedule</h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-white">Race Schedule</h1>
+            <YearSelector
+              selectedYear={selectedYear}
+              onYearChange={setSelectedYear}
+              years={years}
+            />
+          </div>
           
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-            </div>
-          ) : error ? (
-            <div className="text-red-500 text-xl">Error: {error}</div>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {schedule.map((race, index) => (
-                <motion.div
-                  key={race.round}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer"
-                  onClick={() => handleRaceClick(race)}
-                >
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {schedule.map((race, index) => (
+              <motion.div
+                key={`${race.year}-${race.round}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                onClick={() => handleRaceClick(race)}
+                className="bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:bg-gray-700 transition-colors duration-200"
+              >
+                <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-2xl font-bold text-red-500">#{race.round}</span>
-                    <span className="text-gray-400 text-sm">{formatDate(race.date)}</span>
+                    <div className="flex items-center">
+                      <span className="text-red-500 font-bold mr-2">#{race.round}</span>
+                      <h2 className="text-xl font-semibold text-white">{race.name}</h2>
+                    </div>
+                    <span className="text-2xl">{countryFlags[race.country] || '🏎️'}</span>
                   </div>
-                  
-                  <h2 className="text-2xl font-bold text-white mb-2">{race.name}</h2>
-                  <p className="text-gray-400 mb-4">{race.event}</p>
-                  
-                  <div className="flex items-center">
-                    <span className="text-gray-300">
-                      {countryFlags[race.country] || '🏎️'} {race.country}
-                    </span>
+                  <div className="space-y-2">
+                    <p className="text-gray-400">{race.country}</p>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500">Round {race.round}</span>
+                      <span className="text-gray-400">{formatDate(race.date)}</span>
+                    </div>
                   </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </main>
 

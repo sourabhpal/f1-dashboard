@@ -1,251 +1,203 @@
 # F1 Dashboard
 
-A modern web application for Formula 1 fans to view race data, driver standings, team statistics, and more. Built with Next.js, FastAPI, and FastF1.
+A modern Formula 1 dashboard application that provides real-time race data, schedules, and statistics.
 
 ## Features
 
-- 🏎️ Real-time driver standings with modern Oxanium font styling
-- 🏆 Team statistics and points with team logos
-- 📅 Race schedule with country flags
-- ⏱️ Race timing and qualifying data
-- 🔄 Pit stop information
-- 🌤️ Race weather conditions
-- 📊 Detailed driver statistics
-- 🎨 Modern, responsive UI with dark theme
-- 🔄 Automatic database schema versioning
-- 📱 Mobile-friendly design
+- Real-time race data visualization
+- Race schedule with year selection (2020-2025)
+- Driver and constructor standings
+- Circuit information
+- Race results with detailed statistics
+- Dark modern UI with responsive design
+
+## Tech Stack
+
+- **Frontend**: Next.js, React, Tailwind CSS, Framer Motion
+- **Backend**: FastAPI, FastF1, SQLite
+- **Deployment**: Docker, Docker Compose
 
 ## Prerequisites
 
-- Python 3.8 or higher
-- Node.js 16.x or higher
-- npm or yarn package manager
-- Git
-- SQLite3
+- [Docker](https://www.docker.com/products/docker-desktop/) and [Docker Compose](https://docs.docker.com/compose/install/)
+- [Node.js](https://nodejs.org/) (v14 or later) - for local development
+- [Python](https://www.python.org/) (v3.9 or later) - for local development
 
-## Installation
+## Docker Installation
 
-### 1. Clone the Repository
+### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/yourusername/f1-dashboard.git
 cd f1-dashboard
 ```
 
-### 2. Backend Setup
-
-1. Create and activate a Python virtual environment:
+### 2. Build and run with Docker Compose
 
 ```bash
-# On macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-
-# On Windows
-python -m venv venv
-.\venv\Scripts\activate
+# Build and start the containers
+docker-compose up --build
 ```
 
-2. Install Python dependencies:
+This will:
+- Build both frontend and backend containers
+- Start both services
+- Set up the networking between them
+- Mount the necessary volumes
+
+### 3. Access the application
+
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+
+## Local Development Setup
+
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+### Backend Setup
+
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+
+2. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Initialize the database:
+   ```bash
+   python init_db.py
+   ```
+
+5. Populate historical data (optional):
+   ```bash
+   python populate_historical_data.py
+   ```
+
+6. Start the backend server:
+   ```bash
+   python f1_backend.py
+   ```
+
+## Docker Commands
+
+### Basic Commands
 
 ```bash
-cd backend
-pip install -r requirements.txt
+# Start the containers
+docker-compose up
+
+# Start in detached mode
+docker-compose up -d
+
+# Stop the containers
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# View logs for a specific service
+docker-compose logs -f frontend
+docker-compose logs -f backend
 ```
 
-3. Set up FastF1 cache directory:
+### Development Commands
 
 ```bash
-# Create cache directory
-mkdir -p backend/cache
+# Rebuild a specific service
+docker-compose up --build frontend
+docker-compose up --build backend
 
-# Set appropriate permissions (on Unix-based systems)
-chmod 755 backend/cache
+# Access container shell
+docker-compose exec frontend sh
+docker-compose exec backend sh
+
+# Run a command in the container
+docker-compose exec backend python populate_historical_data.py
 ```
 
-4. Initialize the Database:
+### Troubleshooting
 
 ```bash
-# Make sure you're in the backend directory
-python populate_2025_data.py
+# Rebuild from scratch
+docker-compose down
+docker-compose build --no-cache
+docker-compose up
+
+# Check container status
+docker-compose ps
+
+# View container logs
+docker-compose logs
 ```
-
-This script will:
-- Create the SQLite database with proper schema
-- Populate it with 2025 season data from FastF1
-- Set up automatic schema versioning
-- Handle database rebuilds when needed
-
-### 3. Frontend Setup
-
-1. Install Node.js dependencies:
-
-```bash
-cd frontend
-npm install
-# or
-yarn install
-```
-
-2. Add Team Logos:
-Place team logo images in `frontend/public/images/teams/` with the following naming convention:
-- `red-bull.png`
-- `mercedes.png`
-- `ferrari.png`
-- `mclaren.png`
-- `aston-martin.png`
-- `alpine.png`
-- `williams.png`
-- `alphatauri.png`
-- `alfa-romeo.png`
-- `haas.png`
-- `default-team.png` (fallback image)
-
-## Running the Application
-
-### 1. Start the Backend Server
-
-```bash
-# Make sure you're in the backend directory and virtual environment is activated
-cd backend
-uvicorn f1_backend:app --reload --port 8000
-```
-
-The backend server will start on `http://localhost:8000`
-
-### 2. Start the Frontend Development Server
-
-```bash
-# In a new terminal, navigate to the frontend directory
-cd frontend
-npm run dev
-# or
-yarn dev
-```
-
-The frontend application will start on `http://localhost:3000`
 
 ## Project Structure
 
 ```
 f1-dashboard/
-├── backend/
-│   ├── f1_backend.py          # FastAPI backend server
-│   ├── populate_2025_data.py  # Database initialization script
-│   ├── f1_data.db            # SQLite database
-│   ├── cache/                # FastF1 cache directory
-│   └── requirements.txt      # Python dependencies
-├── frontend/
-│   ├── pages/               # Next.js pages
+├── frontend/                # Next.js frontend
 │   ├── components/          # React components
-│   ├── public/             # Static assets
-│   │   └── images/        # Images including team logos
-│   └── styles/            # CSS styles
-└── README.md
+│   ├── pages/               # Next.js pages
+│   ├── public/              # Static assets
+│   ├── styles/              # CSS styles
+│   ├── Dockerfile           # Frontend Docker configuration
+│   └── package.json         # Frontend dependencies
+├── backend/                 # FastAPI backend
+│   ├── f1_backend.py        # Main backend application
+│   ├── init_db.py           # Database initialization
+│   ├── populate_historical_data.py  # Data population script
+│   ├── f1_data.db           # SQLite database
+│   ├── Dockerfile           # Backend Docker configuration
+│   └── requirements.txt     # Backend dependencies
+└── docker-compose.yml       # Docker Compose configuration
 ```
-
-## Database Schema
-
-The application uses SQLite with the following main tables:
-
-- `driver_standings`: Stores driver race results and points
-- `constructors_standings`: Stores team race results and points
-- `race_schedule`: Contains race calendar information
-- `circuits`: Stores circuit information
-- `schema_version`: Tracks database schema version
-
-## Features in Detail
-
-### Automatic Database Management
-- Schema version tracking
-- Automatic database rebuilds when needed
-- Data validation and integrity checks
-- Efficient caching of FastF1 data
-
-### Modern UI Elements
-- Space-inspired Oxanium font for numerical data
-- Team logos with transparency support
-- Smooth animations and transitions
-- Responsive design for all screen sizes
-
-### Real-time Data
-- Live race timing
-- Up-to-date standings
-- Weather conditions
-- Pit stop information
 
 ## Dependencies
 
-### Backend Dependencies
-- fastapi
-- uvicorn
-- fastf1
-- pandas
-- numpy
-- python-multipart
-- sqlite3
-
 ### Frontend Dependencies
-- next
-- react
-- react-dom
-- framer-motion
-- tailwindcss
-- postcss
-- autoprefixer
 
-## Environment Variables
+- Next.js
+- React
+- React DOM
+- Tailwind CSS
+- Framer Motion
+- Axios
+- Chart.js
+- React Chart.js 2
 
-No environment variables are required for basic setup. The application uses default configurations for local development.
+### Backend Dependencies
 
-## Caching
-
-FastF1 uses a local cache to store race data. The cache directory is located at `backend/cache/`. This helps reduce API calls and improves performance.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **FastF1 Cache Permission Errors**
-   ```bash
-   # Fix cache directory permissions
-   chmod -R 755 backend/cache
-   ```
-
-2. **Database Lock Errors**
-   - Ensure no other process is using the database
-   - Delete the database file and restart the application:
-     ```bash
-     rm backend/f1_data.db*
-     ```
-
-3. **Port Conflicts**
-   - If port 8000 is in use, modify the backend startup command:
-     ```bash
-     uvicorn f1_backend:app --reload --port 8001
-     ```
-   - Update the frontend API URL accordingly
-
-### Logging
-
-- Backend logs are displayed in the terminal where the backend server is running
-- Frontend logs are available in the browser's developer console
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- FastAPI
+- Uvicorn
+- FastF1
+- Pandas
+- NumPy
+- SQLite3
+- Python-dotenv
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- [FastF1](https://github.com/theOehrly/Fast-F1) for providing F1 timing data
-- [FastAPI](https://fastapi.tiangolo.com/) for the backend framework
-- [Next.js](https://nextjs.org/) for the frontend framework
-- [Tailwind CSS](https://tailwindcss.com/) for styling 
+MIT 
