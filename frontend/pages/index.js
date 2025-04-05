@@ -1,0 +1,470 @@
+import { useState, useEffect } from 'react';
+import Head from 'next/head';
+import { motion } from 'framer-motion';
+import Layout from '../components/Layout';
+import Image from 'next/image';
+
+// Feature categories with icons
+const featureCategories = [
+  {
+    title: 'Race Information',
+    icon: '🏎️',
+    features: [
+      { name: 'Race Schedule', description: 'Complete F1 calendar with race dates and venues' },
+      { name: 'Race Results', description: 'Detailed race results and podium finishes' },
+      { name: 'Qualifying', description: 'Qualifying session results and grid positions' }
+    ]
+  },
+  {
+    title: 'Driver Statistics',
+    icon: '👤',
+    features: [
+      { name: 'Driver Standings', description: 'Current season driver championship standings' },
+      { name: 'Driver Performance', description: 'Individual driver statistics and achievements' },
+      { name: 'Race History', description: 'Historical race results and performance data' }
+    ]
+  },
+  {
+    title: 'Team Analytics',
+    icon: '🏆',
+    features: [
+      { name: 'Constructor Standings', description: 'Team championship standings and points' },
+      { name: 'Team Performance', description: 'Team statistics and race performance' },
+      { name: 'Car Development', description: 'Team car development and upgrades' }
+    ]
+  },
+  {
+    title: 'Race Analysis',
+    icon: '📊',
+    features: [
+      { name: 'Race Timing', description: 'Detailed lap times and race timing data' },
+      { name: 'Pit Stop Analysis', description: 'Pit stop strategies and timing analysis' },
+      { name: 'Weather Conditions', description: 'Race weather data and conditions' }
+    ]
+  }
+];
+
+// Country to flag emoji mapping
+const countryFlags = {
+  'Australia': '🇦🇺',
+  'Austria': '🇦🇹',
+  'Azerbaijan': '🇦🇿',
+  'Bahrain': '🇧🇭',
+  'Belgium': '🇧🇪',
+  'Brazil': '🇧🇷',
+  'Canada': '🇨🇦',
+  'China': '🇨🇳',
+  'France': '🇫🇷',
+  'Germany': '🇩🇪',
+  'Hungary': '🇭🇺',
+  'Italy': '🇮🇹',
+  'Japan': '🇯🇵',
+  'Mexico': '🇲🇽',
+  'Monaco': '🇲🇨',
+  'Netherlands': '🇳🇱',
+  'Qatar': '🇶🇦',
+  'Russia': '🇷🇺',
+  'Saudi Arabia': '🇸🇦',
+  'Singapore': '🇸🇬',
+  'Spain': '🇪🇸',
+  'Turkey': '🇹🇷',
+  'United Arab Emirates': '🇦🇪',
+  'United Kingdom': '🇬🇧',
+  'United States': '🇺🇸',
+  'Vietnam': '🇻🇳'
+};
+
+export default function Home() {
+  const [standings, setStandings] = useState([]);
+  const [nextRace, setNextRace] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [quickStats, setQuickStats] = useState({
+    mostWins: { driver: '', wins: 0, team: '' },
+    mostPitStops: { driver: '', pits: 0, team: '' },
+    mostPoles: { driver: '', poles: 0, team: '' },
+    mostOvertakes: { driver: '', overtakes: 0, team: '' }
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch standings
+        const standingsResponse = await fetch('http://localhost:8000/standings/2025');
+        if (!standingsResponse.ok) throw new Error('Failed to fetch standings');
+        const standingsData = await standingsResponse.json();
+        setStandings(standingsData);
+
+        // Fetch next race
+        const scheduleResponse = await fetch('http://localhost:8000/schedule/2025');
+        if (!scheduleResponse.ok) throw new Error('Failed to fetch schedule');
+        const scheduleData = await scheduleResponse.json();
+        
+        // Find the next race
+        const now = new Date();
+        const nextRaceData = scheduleData.find(race => new Date(race.date) > now);
+        setNextRace(nextRaceData);
+
+        // Fetch quick stats
+        const quickStatsResponse = await fetch('http://localhost:8000/quick-stats/2025');
+        if (!quickStatsResponse.ok) throw new Error('Failed to fetch quick stats');
+        const quickStatsData = await quickStatsResponse.json();
+        setQuickStats(quickStatsData);
+
+        // Calculate countdown
+        if (nextRaceData) {
+          const raceDate = new Date(nextRaceData.date);
+          const updateCountdown = () => {
+            const now = new Date();
+            const diff = raceDate - now;
+            
+            setCountdown({
+              days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+              hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+              minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+              seconds: Math.floor((diff % (1000 * 60)) / 1000)
+            });
+          };
+
+          updateCountdown();
+          const timer = setInterval(updateCountdown, 1000);
+          return () => clearInterval(timer);
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  return (
+    <Layout>
+      <Head>
+        <title>F1 Dashboard</title>
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+
+      {/* Modern Title Card */}
+      <div className="container mx-auto px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-8 shadow-xl"
+        >
+          <div className="flex flex-col md:flex-row items-center justify-between">
+            <div className="text-center md:text-left mb-4 md:mb-0">
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
+                F1 Dashboard
+              </h1>
+              <p className="text-gray-200 text-lg">
+                Comprehensive Formula 1 statistics, race results, and analysis
+              </p>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="bg-white/10 rounded-lg p-3">
+                <span className="text-2xl">🏎️</span>
+              </div>
+              <div className="bg-white/10 rounded-lg p-3">
+                <span className="text-2xl">📊</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Season Quick Stats */}
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 mb-8 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-6">Season Quick Stats</h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+          >
+            <h3 className="text-lg font-semibold text-white mb-2">🏆 Most Wins</h3>
+            <p className="text-3xl font-bold mb-1" style={{ color: quickStats.mostWins.team_color || '#ff0000' }}>
+              {quickStats.mostWins.driver}
+            </p>
+            <p className="text-gray-400 font-['Oxanium'] tracking-wider">{quickStats.mostWins.wins} wins</p>
+            <p className="text-sm text-gray-500">{quickStats.mostWins.team}</p>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+          >
+            <h3 className="text-lg font-semibold text-white mb-2">⛽ Most Pit Stops</h3>
+            <p className="text-3xl font-bold mb-1" style={{ color: quickStats.mostPitStops.team_color || '#ff0000' }}>
+              {quickStats.mostPitStops.driver}
+            </p>
+            <p className="text-gray-400 font-['Oxanium'] tracking-wider">{quickStats.mostPitStops.pits} stops</p>
+            <p className="text-sm text-gray-500">{quickStats.mostPitStops.team}</p>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+          >
+            <h3 className="text-lg font-semibold text-white mb-2">🚩 Most Poles</h3>
+            <p className="text-3xl font-bold mb-1" style={{ color: quickStats.mostPoles.team_color || '#ff0000' }}>
+              {quickStats.mostPoles.driver}
+            </p>
+            <p className="text-gray-400 font-['Oxanium'] tracking-wider">{quickStats.mostPoles.poles} poles</p>
+            <p className="text-sm text-gray-500">{quickStats.mostPoles.team}</p>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+          >
+            <h3 className="text-lg font-semibold text-white mb-2">🔄 Most Overtakes</h3>
+            <p className="text-3xl font-bold mb-1" style={{ color: quickStats.mostOvertakes.team_color || '#ff0000' }}>
+              {quickStats.mostOvertakes.driver}
+            </p>
+            <p className="text-gray-400 font-['Oxanium'] tracking-wider">{quickStats.mostOvertakes.overtakes} positions</p>
+            <p className="text-sm text-gray-500">{quickStats.mostOvertakes.team}</p>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Next Race & Circuit Preview */}
+      {nextRace && (
+        <div className="bg-gray-900 py-8">
+          <div className="container mx-auto px-4">
+            <div className="grid md:grid-cols-2 gap-8 items-center">
+              {/* Next Race Info */}
+              <div className="text-center flex flex-col justify-center">
+                <h2 className="text-2xl font-bold text-white mb-4">
+                  <span className="mr-2">{countryFlags[nextRace.country] || '🏎️'}</span>
+                  {nextRace.event}
+                </h2>
+                <p className="text-gray-400 mb-6">{nextRace.date}</p>
+                <div className="flex justify-center space-x-4">
+                  {Object.entries(countdown).map(([unit, value]) => (
+                    <div key={unit} className="text-center">
+                      <div className="bg-red-600 text-white rounded-lg p-4 w-20">
+                        <div className="text-2xl font-bold">{value}</div>
+                        <div className="text-sm uppercase">
+                          {unit === 'minutes' ? 'mins' : unit === 'seconds' ? 'secs' : unit}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Circuit Preview */}
+              <div className="bg-gray-800 rounded-lg p-6 flex flex-col justify-center">
+                <h3 className="text-xl font-bold text-white mb-4">Circuit Preview</h3>
+                <div className="relative w-full aspect-[16/9] rounded-lg overflow-hidden bg-gray-700">
+                  <Image
+                    src="/images/circuits/default-circuit.jpg"
+                    alt={`${nextRace?.name || 'Next Race'} Circuit`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="object-contain"
+                    priority
+                    onError={(e) => {
+                      e.target.src = '/images/circuits/default-circuit.jpg';
+                    }}
+                  />
+                </div>
+                {nextRace && (
+                  <div className="mt-4">
+                    <h4 className="text-lg font-semibold text-white">
+                      <span className="mr-2">{countryFlags[nextRace.country] || '🏎️'}</span>
+                      {nextRace.name}
+                    </h4>
+                    <p className="text-gray-400">{nextRace.date}</p>
+                    <p className="text-gray-400">{nextRace.country}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Current Driver Standings */}
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 mb-8 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-6">Current Driver Standings</h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {standings.slice(0, 3).map((driver, index) => (
+            <motion.div
+              key={driver.driver_name}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ 
+                scale: 1.02,
+                y: -5,
+                transition: { duration: 0.2 }
+              }}
+              className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <motion.div 
+                    className="text-3xl font-bold mr-4"
+                    style={{ color: driver.driver_color || '#ff0000' }}
+                    whileHover={{ scale: 1.1 }}
+                  >
+                    {driver.position}
+                  </motion.div>
+                  <div className="flex items-center">
+                    <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
+                      <Image
+                        src={`/images/drivers/${driver.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
+                        alt={`${driver.driver_name}`}
+                        fill
+                        sizes="48px"
+                        className="object-contain"
+                        onError={(e) => {
+                          e.target.src = '/images/drivers/default-driver.png';
+                        }}
+                      />
+                    </div>
+                    <motion.h3 
+                      className="text-xl font-semibold"
+                      style={{ color: driver.driver_color || '#ff0000' }}
+                      whileHover={{ scale: 1.05 }}
+                    >
+                      {driver.driver_name}
+                    </motion.h3>
+                  </div>
+                </div>
+                <motion.div 
+                  className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
+                  whileHover={{ scale: 1.1 }}
+                >
+                  {driver.points} <span className="text-sm text-gray-400">pts</span>
+                </motion.div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Current Constructors Standings */}
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 mb-8 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-6">Current Constructors Standings</h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {Object.values(standings.reduce((acc, driver) => {
+            const team = driver.team;
+            if (!acc[team]) {
+              acc[team] = {
+                team: team,
+                points: 0,
+                drivers: [],
+                driver_color: driver.driver_color
+              };
+            }
+            acc[team].points += driver.points;
+            acc[team].drivers.push(driver.driver_name);
+            return acc;
+          }, {}))
+          .sort((a, b) => b.points - a.points)
+          .slice(0, 3)
+          .map((team, index) => (
+            <motion.div
+              key={team.team}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ 
+                scale: 1.02,
+                y: -5,
+                transition: { duration: 0.2 }
+              }}
+              className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <motion.div 
+                    className="text-3xl font-bold mr-4"
+                    style={{ color: team.driver_color || '#ff0000' }}
+                    whileHover={{ scale: 1.1 }}
+                  >
+                    {index + 1}
+                  </motion.div>
+                  <div className="flex items-center space-x-4">
+                    <div className="relative w-12 h-12 bg-gray-800 rounded-lg p-1">
+                      <Image
+                        src={`/images/teams/${team.team.toLowerCase().replace(/\s+/g, '-')}.png`}
+                        alt={`${team.team} logo`}
+                        fill
+                        sizes="48px"
+                        className="object-contain"
+                        style={{ mixBlendMode: 'screen' }}
+                        onError={(e) => {
+                          e.target.src = '/images/teams/default-team.png';
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <motion.h3 
+                        className="text-xl font-semibold"
+                        style={{ color: team.driver_color || '#ff0000' }}
+                        whileHover={{ scale: 1.05 }}
+                      >
+                        {team.team}
+                      </motion.h3>
+                      <p className="text-gray-400">{team.drivers.join(' / ')}</p>
+                    </div>
+                  </div>
+                </div>
+                <motion.div 
+                  className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
+                  whileHover={{ scale: 1.1 }}
+                >
+                  {team.points} <span className="text-sm text-gray-400">pts</span>
+                </motion.div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Feature Categories */}
+      <div className="bg-gray-900 py-12">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-white mb-8 text-center">Explore F1 Data</h2>
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+            {featureCategories.map((category, index) => (
+              <motion.div
+                key={category.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-gray-800 rounded-lg p-6 shadow-lg"
+              >
+                <div className="text-4xl mb-4">{category.icon}</div>
+                <h3 className="text-xl font-semibold text-white mb-4">{category.title}</h3>
+                <ul className="space-y-3">
+                  {category.features.map((feature) => (
+                    <li key={feature.name} className="text-gray-300">
+                      <span className="text-red-500 mr-2">•</span>
+                      {feature.name}
+                      <p className="text-sm text-gray-400 mt-1">{feature.description}</p>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}

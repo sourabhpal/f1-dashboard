@@ -1,0 +1,186 @@
+import { useState, useEffect } from 'react';
+import Head from 'next/head';
+import { motion } from 'framer-motion';
+import Image from 'next/image';
+import Layout from '../components/Layout';
+import YearSelect from '../components/YearSelect';
+
+export default function Standings() {
+  const [currentYear, setCurrentYear] = useState(2025);
+  const [driverStandings, setDriverStandings] = useState([]);
+  const [constructorStandings, setConstructorStandings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [availableYears, setAvailableYears] = useState([2025, 2024, 2023, 2022]);
+
+  useEffect(() => {
+    const fetchAvailableYears = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/available-years');
+        if (!response.ok) throw new Error('Failed to fetch available years');
+        const data = await response.json();
+        setAvailableYears(Array.isArray(data.years) ? data.years : [2025, 2024, 2023, 2022]);
+      } catch (err) {
+        console.error('Error fetching available years:', err);
+        setAvailableYears([2025, 2024, 2023, 2022]);
+      }
+    };
+
+    fetchAvailableYears();
+  }, []);
+
+  useEffect(() => {
+    const fetchStandings = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch driver standings
+        const driverResponse = await fetch(`http://localhost:8000/standings/${currentYear}`);
+        if (!driverResponse.ok) throw new Error('Failed to fetch driver standings');
+        const driverData = await driverResponse.json();
+        setDriverStandings(driverData);
+
+        // Fetch constructor standings
+        const constructorResponse = await fetch(`http://localhost:8000/teams/${currentYear}`);
+        if (!constructorResponse.ok) throw new Error('Failed to fetch constructor standings');
+        const constructorData = await constructorResponse.json();
+        setConstructorStandings(constructorData);
+      } catch (err) {
+        console.error('Error fetching standings:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStandings();
+  }, [currentYear]);
+
+  return (
+    <Layout>
+      <Head>
+        <title>F1 Standings</title>
+        <meta name="description" content="Formula 1 Driver and Constructor Standings" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold text-white">F1 Standings</h1>
+          <YearSelect
+            value={currentYear}
+            onChange={setCurrentYear}
+            years={availableYears}
+          />
+        </div>
+
+        {loading && (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-900/50 text-white p-4 rounded-lg mb-4">
+            <p>Error: {error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <div className="grid gap-8">
+            {/* Driver Standings */}
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-6">Driver Standings</h2>
+              <div className="grid gap-4">
+                {driverStandings.map((standing, index) => (
+                  <motion.div
+                    key={standing.driver_name}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-gray-800 rounded-lg p-6 shadow-lg"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="text-2xl font-bold" style={{ color: standing.driver_color || '#ff0000' }}>{standing.position}</div>
+                        <div className="flex items-center space-x-4">
+                          <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
+                            <Image
+                              src={`/images/drivers/${standing.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
+                              alt={`${standing.driver_name}`}
+                              fill
+                              sizes="48px"
+                              className="object-contain"
+                              onError={(e) => {
+                                e.target.src = '/images/drivers/default-driver.png';
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-semibold" style={{ color: standing.driver_color || '#ff0000' }}>{standing.driver_name}</h2>
+                            <p className="text-gray-400">{standing.team}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider">
+                        {standing.points} <span className="text-sm text-gray-400">pts</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+
+            {/* Constructor Standings */}
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-6">Constructor Standings</h2>
+              <div className="grid gap-4">
+                {constructorStandings.map((standing, index) => (
+                  <motion.div
+                    key={standing.team}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-gray-800 rounded-lg p-6 shadow-lg"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="text-2xl font-bold" style={{ color: standing.team_color || '#ff0000' }}>{index + 1}</div>
+                        <div className="flex items-center space-x-4">
+                          <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
+                            <Image
+                              src={`/images/teams/${standing.team.toLowerCase().replace(/\s+/g, '-')}.png`}
+                              alt={`${standing.team} logo`}
+                              fill
+                              sizes="48px"
+                              className="object-contain"
+                              onError={(e) => {
+                                e.target.src = '/images/teams/default-team.png';
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-semibold" style={{ color: standing.team_color || '#ff0000' }}>{standing.team}</h2>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider">
+                        {standing.points} <span className="text-sm text-gray-400">pts</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+} 
