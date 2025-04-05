@@ -14,9 +14,9 @@ export default function Navbar() {
               <Image
                 src="/images/f1-logo.png"
                 alt="F1 Logo"
-                width={120}
-                height={19}
-                className="h-7 sm:h-8 md:h-9 w-auto"
+                width={160}
+                height={25}
+                className="h-8 sm:h-9 md:h-10 w-auto object-contain"
                 priority
                 quality={100}
               />
@@ -26,7 +26,7 @@ export default function Navbar() {
                 Standings
               </Link>
               <Link href="/races" className="text-gray-300 hover:text-white transition-colors">
-                Races
+                Race Data
               </Link>
               <Link href="/schedule" className="text-gray-300 hover:text-white transition-colors">
                 Schedule
@@ -75,7 +75,7 @@ export default function Navbar() {
               Standings
             </Link>
             <Link href="/races" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
-              Races
+              Race Data
             </Link>
             <Link href="/drivers" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
               Drivers

@@ -147,7 +147,7 @@ export default function Home() {
   return (
     <Layout>
       <Head>
-        <title>F1 Dashboard</title>
+        <title>Monty's F1 Dashboard</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
@@ -335,13 +335,12 @@ export default function Home() {
                         }}
                       />
                     </div>
-                    <motion.h3 
-                      className="text-xl font-semibold"
+                    <h3 
+                      className="text-lg font-medium ml-3"
                       style={{ color: driver.driver_color || '#ff0000' }}
-                      whileHover={{ scale: 1.05 }}
                     >
                       {driver.driver_name}
-                    </motion.h3>
+                    </h3>
                   </div>
                 </div>
                 <motion.div 
@@ -413,14 +412,13 @@ export default function Home() {
                       />
                     </div>
                     <div>
-                      <motion.h3 
-                        className="text-xl font-semibold"
+                      <h3 
+                        className="text-lg font-medium ml-3"
                         style={{ color: team.driver_color || '#ff0000' }}
-                        whileHover={{ scale: 1.05 }}
                       >
                         {team.team}
-                      </motion.h3>
-                      <p className="text-gray-400">{team.drivers.join(' / ')}</p>
+                      </h3>
+                      <p className="text-gray-400 text-sm ml-3">{team.drivers.join(' / ')}</p>
                     </div>
                   </div>
                 </div>
