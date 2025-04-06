@@ -21,7 +21,7 @@ app = FastAPI()
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],  # Allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,6 +68,7 @@ def init_db():
                     laps INTEGER,
                     status TEXT,
                     grid_position INTEGER,
+                    nationality TEXT,
                     PRIMARY KEY (year, round, driver_name)
                 )
             ''')
@@ -165,6 +166,10 @@ def init_db():
                 logger.info("Adding grid_position column to driver_standings table")
                 conn.execute('ALTER TABLE driver_standings ADD COLUMN grid_position INTEGER')
             
+            if 'nationality' not in columns:
+                logger.info("Adding nationality column to driver_standings table")
+                conn.execute('ALTER TABLE driver_standings ADD COLUMN nationality TEXT')
+            
             # Add index for race positions
             conn.execute('CREATE INDEX IF NOT EXISTS idx_race_positions_year_round ON race_positions(year, round)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_race_positions_driver ON race_positions(driver_abbr)')
@@ -199,6 +204,116 @@ def standardize_team_color(color):
         color_str = f"#{color_str}"
     
     return color_str
+
+def standardize_driver_name(name):
+    """
+    Standardize driver names to ensure consistency.
+    
+    Args:
+        name (str): Driver name to standardize
+        
+    Returns:
+        str: Standardized driver name
+    """
+    name_mapping = {
+        'Andrea Kimi Antonelli': 'Kimi Antonelli',
+        'Isack Hadjar': 'Isack Hadjar',
+        'Gabriel Bortoleto': 'Gabriel Bortoleto',
+        'Jack Doohan': 'Jack Doohan',
+        'Liam Lawson': 'Liam Lawson',
+        'Yuki Tsunoda': 'Yuki Tsunoda',
+        'Pierre Gasly': 'Pierre Gasly',
+        'Fernando Alonso': 'Fernando Alonso',
+        'Carlos Sainz': 'Carlos Sainz',
+        'Lewis Hamilton': 'Lewis Hamilton',
+        'Charles Leclerc': 'Charles Leclerc',
+        'Lance Stroll': 'Lance Stroll',
+        'Esteban Ocon': 'Esteban Ocon',
+        'Oliver Bearman': 'Oliver Bearman',
+        'Nico Hulkenberg': 'Nico Hulkenberg',
+        'Alexander Albon': 'Alexander Albon',
+        'George Russell': 'George Russell',
+        'Oscar Piastri': 'Oscar Piastri',
+        'Lando Norris': 'Lando Norris',
+        'Max Verstappen': 'Max Verstappen'
+    }
+    return name_mapping.get(name, name)
+
+def get_driver_team(driver_name, year):
+    """
+    Get the correct team for a driver in a given year.
+    
+    Args:
+        driver_name (str): Driver name
+        year (int): Year to check
+        
+    Returns:
+        str: Team name
+    """
+    team_mapping = {
+        'Kimi Antonelli': 'Mercedes',
+        'Isack Hadjar': 'Racing Bulls',
+        'Gabriel Bortoleto': 'Kick Sauber',
+        'Jack Doohan': 'Alpine',
+        'Liam Lawson': 'Racing Bulls',  # Updated from Red Bull Racing
+        'Yuki Tsunoda': 'Red Bull Racing',  # Updated from Racing Bulls
+        'Pierre Gasly': 'Alpine',
+        'Fernando Alonso': 'Aston Martin',
+        'Carlos Sainz': 'Williams',
+        'Lewis Hamilton': 'Ferrari',
+        'Charles Leclerc': 'Ferrari',
+        'Lance Stroll': 'Aston Martin',
+        'Esteban Ocon': 'Haas F1 Team',
+        'Oliver Bearman': 'Haas F1 Team',
+        'Nico Hulkenberg': 'Kick Sauber',
+        'Alexander Albon': 'Williams',
+        'George Russell': 'Mercedes',
+        'Oscar Piastri': 'McLaren',
+        'Lando Norris': 'McLaren',
+        'Max Verstappen': 'Red Bull Racing'
+    }
+    return team_mapping.get(driver_name, 'Unknown')
+
+def calculate_points(position, is_fastest_lap=False, is_sprint=False):
+    """
+    Calculate points according to the official F1 2025 rules.
+    
+    Args:
+        position (int): Race position (1-10)
+        is_fastest_lap (bool): Whether the driver set the fastest lap (not used in 2025)
+        is_sprint (bool): Whether this is a sprint race
+        
+    Returns:
+        int: Points awarded
+    """
+    if is_sprint:
+        # Sprint race points (2025)
+        sprint_points = {
+            1: 8,
+            2: 7,
+            3: 6,
+            4: 5,
+            5: 4,
+            6: 3,
+            7: 2,
+            8: 1
+        }
+        return sprint_points.get(position, 0)
+    else:
+        # Main race points (2025)
+        race_points = {
+            1: 25,
+            2: 18,
+            3: 15,
+            4: 12,
+            5: 10,
+            6: 8,
+            7: 6,
+            8: 4,
+            9: 2,
+            10: 1
+        }
+        return race_points.get(position, 0)
 
 @app.get("/available-years")
 async def get_available_years():
@@ -251,205 +366,68 @@ async def get_standings(year: int):
     try:
         with db_lock:
             with get_db_connection() as conn:
-                # Get the latest round for the year
                 cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT MAX(round) FROM driver_standings WHERE year = ?
-                """, (year,))
-                latest_round = cursor.fetchone()[0]
                 
-                if latest_round is None or latest_round == 0:  # 0 indicates cached year
-                    # If no data exists, fetch from FastF1
-                    logger.info(f"Fetching standings for year {year} from FastF1")
-                    
-                    # For 2025, try to fetch from FastF1 first
-                    if year == 2025:
-                        try:
-                            schedule = fastf1.get_event_schedule(year)
-                            if not schedule.empty:
-                                # Get all races for the year
-                                all_standings = []
-                                for _, race in schedule.iterrows():
-                                    round_num = race['RoundNumber']
-                                    try:
-                                        # Load the race session
-                                        session = fastf1.get_session(year, round_num, 'R')
-                                        session.load()
-                                        
-                                        # Get driver standings with proper column mapping
-                                        results = session.results
-                                        logger.info(f"Processing race {round_num} for year {year}")
-                                        
-                                        # Format team colors to include '#' prefix
-                                        team_colors = results['TeamColor'].apply(standardize_team_color)
-                                        
-                                        # Get fastest lap times
-                                        fastest_laps = session.laps.groupby('Driver')['LapTime'].min()
-                                        
-                                        # Get qualifying positions
-                                        try:
-                                            quali_session = fastf1.get_session(year, round_num, 'Q')
-                                            quali_session.load()
-                                            quali_results = quali_session.results
-                                            quali_positions = dict(zip(quali_results['DriverNumber'], quali_results['Position']))
-                                        except Exception as e:
-                                            logger.warning(f"Error fetching qualifying positions for round {round_num}: {str(e)}")
-                                            quali_positions = {}
-                                        
-                                        # Calculate positions gained
-                                        positions_gained = {}
-                                        for driver in results['DriverNumber']:
-                                            quali_pos = quali_positions.get(driver, 20)  # Default to last if no quali position
-                                            race_pos = results[results['DriverNumber'] == driver]['Position'].iloc[0]
-                                            positions_gained[driver] = quali_pos - race_pos
-                                        
-                                        # Get pit stops
-                                        try:
-                                            # Load the session data first
-                                            session.load(weather=False, messages=False, laps=False, timing_data=False)
-                                            pit_data = session.pits
-                                            # Count only actual pit stops, not all telemetry data points
-                                            pit_stops = {}
-                                            for driver in results['DriverNumber']:
-                                                driver_pits = pit_data[pit_data['DriverNumber'] == driver]
-                                                # Count only rows where there's a pit in time (actual pit stop)
-                                                pit_count = len(driver_pits[driver_pits['PitInTime'].notna()])
-                                                pit_stops[driver] = pit_count
-                                        except Exception as e:
-                                            logger.warning(f"Error fetching pit stops for round {round_num}: {str(e)}")
-                                            # For 2025 data, simulate pit stops if we can't get real data
-                                            if year == 2025:
-                                                np.random.seed(round_num)  # Use round number as seed for consistency
-                                                pit_stops = {driver: np.random.randint(1, 4) for driver in results['DriverNumber']}
-                                            else:
-                                                pit_stops = {}
-                                        
-                                        standings = pd.DataFrame({
-                                            'position': results['Position'],
-                                            'driver_name': results['FullName'],
-                                            'team': results['TeamName'],
-                                            'points': results['Points'],
-                                            'driver_color': team_colors,
-                                            'driver_number': results['DriverNumber'],
-                                            'fastest_lap_time': results['DriverNumber'].map(lambda x: str(fastest_laps.get(x, 'N/A'))),
-                                            'qualifying_position': results['DriverNumber'].map(lambda x: quali_positions.get(x, 20)),
-                                            'positions_gained': results['DriverNumber'].map(lambda x: positions_gained.get(x, 0)),
-                                            'pit_stops': results['DriverNumber'].map(lambda x: pit_stops.get(x, 0))
-                                        })
-                                        
-                                        # Store in database
-                                        for _, row in standings.iterrows():
-                                            cursor.execute("""
-                                                INSERT INTO driver_standings (
-                                                    year, round, position, driver_name, team, points,
-                                                    driver_color, driver_number, fastest_lap_time,
-                                                    qualifying_position, positions_gained, pit_stops
-                                                )
-                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                            """, (
-                                                year, round_num, row['position'], row['driver_name'],
-                                                row['team'], row['points'], row['driver_color'],
-                                                row['driver_number'], row['fastest_lap_time'],
-                                                row['qualifying_position'], row['positions_gained'],
-                                                row['pit_stops']
-                                            ))
-                                        
-                                        all_standings.append(standings)
-                                        logger.info(f"Successfully processed race {round_num} for year {year}")
-                                    except Exception as e:
-                                        logger.warning(f"Error processing race {round_num} for year {year}: {str(e)}")
-                                        continue
-                                
-                                conn.commit()
-                                
-                                if all_standings:
-                                    # Calculate final standings by summing points for each driver
-                                    final_standings = pd.concat(all_standings).groupby(['driver_number', 'team', 'driver_color'])['points'].sum().reset_index()
-                                    
-                                    # Get the most common driver name for each driver number
-                                    driver_names = pd.concat(all_standings).groupby('driver_number')['driver_name'].agg(lambda x: x.mode().iloc[0]).reset_index()
-                                    final_standings = final_standings.merge(driver_names, on='driver_number')
-                                    
-                                    final_standings['position'] = final_standings['points'].rank(ascending=False, method='min').astype(int)
-                                    final_standings = final_standings.sort_values('position')
-                                    
-                                    # Ensure team colors are standardized
-                                    final_standings['driver_color'] = final_standings['driver_color'].apply(standardize_team_color)
-                                    
-                                    logger.info(f"Successfully calculated final standings for year {year}")
-                                    return final_standings.to_dict(orient='records')
-                        except Exception as e:
-                            logger.warning(f"Error fetching 2025 data from FastF1: {str(e)}")
-                    
-                    # If FastF1 fails or no data available, use database data
-                    logger.info(f"Using database data for year {year}")
-                    cursor.execute("""
-                        WITH final_points AS (
-                            SELECT DISTINCT 
-                                driver_number,
-                                team,
-                                driver_color,
-                                SUM(points) as total_points,
-                                MAX(driver_name) as driver_name
-                            FROM driver_standings
-                            WHERE year = ? AND round > 0
-                            GROUP BY driver_number, team, driver_color
-                        )
+                # Get driver standings with latest team information
+                cursor.execute("""
+                    WITH latest_team AS (
                         SELECT 
-                            ROW_NUMBER() OVER (ORDER BY total_points DESC) as position,
                             driver_name,
                             team,
-                            total_points as points,
-                            driver_color,
-                            driver_number
-                        FROM final_points
-                        ORDER BY total_points DESC
-                    """, (year,))
-                    
-                    columns = ['position', 'driver_name', 'team', 'points', 'driver_color', 'driver_number']
-                    results = [dict(zip(columns, row)) for row in cursor.fetchall()]
-                    
-                    # Ensure team colors are standardized
-                    for result in results:
-                        result['driver_color'] = standardize_team_color(result['driver_color'])
-                    
-                    logger.info(f"Found {len(results)} drivers in standings for year {year}")
-                    return results
-                
-                # If data exists, return from database
-                logger.info(f"Fetching standings for year {year} from database")
-                cursor.execute("""
-                    WITH final_points AS (
-                        SELECT DISTINCT 
-                            driver_number,
-                            team,
-                            driver_color,
-                            SUM(points) as total_points,
-                            MAX(driver_name) as driver_name
+                            MAX(round) as max_round
                         FROM driver_standings
-                        WHERE year = ? AND round > 0
-                        GROUP BY driver_number, team, driver_color
+                        WHERE year = ?
+                        GROUP BY driver_name
+                    ),
+                    driver_stats AS (
+                        SELECT 
+                            ds.driver_name,
+                            lt.team,
+                            ds.driver_number,
+                            ds.driver_color,
+                            ds.nationality,
+                            SUM(ds.points) as total_points,
+                            COUNT(DISTINCT ds.round) as races_participated
+                        FROM driver_standings ds
+                        JOIN latest_team lt ON ds.driver_name = lt.driver_name
+                        WHERE ds.year = ?
+                        GROUP BY ds.driver_name, lt.team, ds.driver_number, ds.driver_color, ds.nationality
                     )
-                    SELECT 
-                        ROW_NUMBER() OVER (ORDER BY total_points DESC) as position,
-                        driver_name,
-                        team,
-                        total_points as points,
-                        driver_color,
-                        driver_number
-                    FROM final_points
-                    ORDER BY total_points DESC
-                """, (year,))
+                    SELECT DISTINCT
+                        ds.driver_name,
+                        ds.team,
+                        ds.driver_number,
+                        ds.driver_color,
+                        ds.nationality,
+                        ds.total_points,
+                        ds.races_participated,
+                        ROW_NUMBER() OVER (ORDER BY ds.total_points DESC) as position
+                    FROM driver_stats ds
+                    ORDER BY ds.total_points DESC
+                """, (year, year))
                 
-                columns = ['position', 'driver_name', 'team', 'points', 'driver_color', 'driver_number']
-                results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                results = cursor.fetchall()
                 
-                # Ensure team colors are standardized
-                for result in results:
-                    result['driver_color'] = standardize_team_color(result['driver_color'])
+                # Convert tuples to dictionaries
+                formatted_results = []
+                for row in results:
+                    driver_name = standardize_driver_name(row[0])
+                    team = get_driver_team(driver_name, year)
+                    driver_color = standardize_team_color(row[3])
+                    
+                    formatted_results.append({
+                        'driver_name': driver_name,
+                        'team': team,
+                        'driver_number': int(row[2]) if row[2] is not None else None,
+                        'driver_color': driver_color,
+                        'nationality': row[4],
+                        'points': row[5],
+                        'races_participated': row[6],
+                        'position': row[7]
+                    })
                 
-                logger.info(f"Found {len(results)} drivers in standings for year {year}")
-                return results
+                logger.info(f"Found {len(formatted_results)} drivers in standings for year {year}")
+                return formatted_results
                 
     except Exception as e:
         logger.error(f"Error fetching standings for year {year}: {str(e)}")
@@ -607,7 +585,20 @@ async def get_quick_stats(year: int):
                                         team_colors = results['TeamColor'].apply(standardize_team_color)
                                         
                                         # Get fastest lap times
-                                        fastest_laps = session.laps.groupby('Driver')['LapTime'].min()
+                                        fastest_laps = {}
+                                        try:
+                                            fastest_laps = session.laps.groupby('Driver')['LapTime'].min()
+                                        except Exception as e:
+                                            logger.warning(f"Error getting fastest laps for {year} Round {round_num}: {str(e)}")
+                                            # If we can't get fastest laps from laps data, try to get from results
+                                            try:
+                                                for _, result in results.iterrows():
+                                                    driver = result['DriverNumber']
+                                                    if 'FastestLap' in result and result['FastestLap']:
+                                                        # If this driver had the fastest lap, use a placeholder
+                                                        fastest_laps[driver] = "Fastest Lap"
+                                            except Exception as e2:
+                                                logger.warning(f"Error with fallback fastest lap approach: {str(e2)}")
                                         
                                         # Get qualifying positions
                                         try:
@@ -622,7 +613,7 @@ async def get_quick_stats(year: int):
                                         # Calculate positions gained
                                         positions_gained = {}
                                         for driver in results['DriverNumber']:
-                                            quali_pos = quali_positions.get(driver, 20)
+                                            quali_pos = quali_positions.get(driver, 20)  # Default to last if no quali position
                                             race_pos = results[results['DriverNumber'] == driver]['Position'].iloc[0]
                                             positions_gained[driver] = quali_pos - race_pos
                                         
@@ -647,6 +638,23 @@ async def get_quick_stats(year: int):
                                             else:
                                                 pit_stops = {}
                                         
+                                        # Create a function to safely get fastest lap time
+                                        def get_fastest_lap_time(driver_number):
+                                            try:
+                                                # First try to get from the fastest_laps dictionary
+                                                if driver_number in fastest_laps:
+                                                    return str(fastest_laps[driver_number])
+                                                
+                                                # If not found, check if this driver had the fastest lap in results
+                                                driver_result = results[results['DriverNumber'] == driver_number]
+                                                if not driver_result.empty and 'FastestLap' in driver_result.columns and driver_result['FastestLap'].iloc[0]:
+                                                    return "Fastest Lap"
+                                                
+                                                return 'N/A'
+                                            except Exception as e:
+                                                logger.warning(f"Error getting fastest lap time for driver {driver_number}: {str(e)}")
+                                                return 'N/A'
+                                        
                                         standings = pd.DataFrame({
                                             'position': results['Position'],
                                             'driver_name': results['FullName'],
@@ -654,7 +662,7 @@ async def get_quick_stats(year: int):
                                             'points': results['Points'],
                                             'driver_color': team_colors,
                                             'driver_number': results['DriverNumber'],
-                                            'fastest_lap_time': results['DriverNumber'].map(lambda x: str(fastest_laps.get(x, 'N/A'))),
+                                            'fastest_lap_time': results['DriverNumber'].apply(get_fastest_lap_time),
                                             'qualifying_position': results['DriverNumber'].map(lambda x: quali_positions.get(x, 20)),
                                             'positions_gained': results['DriverNumber'].map(lambda x: positions_gained.get(x, 0)),
                                             'pit_stops': results['DriverNumber'].map(lambda x: pit_stops.get(x, 0))

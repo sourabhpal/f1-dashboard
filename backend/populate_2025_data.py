@@ -7,6 +7,7 @@ import os
 import time
 import hashlib
 import numpy as np
+import shutil
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -60,6 +61,7 @@ def get_schema_hash():
         pit_stops INTEGER,
         driver_number INTEGER,
         driver_color TEXT,
+        nationality TEXT,
         PRIMARY KEY (year, round, driver_name)
     );
 
@@ -117,8 +119,11 @@ def needs_rebuild():
     finally:
         conn.close()
 
-def init_db():
+def init_db(db_path=None):
     """Initialize the database with required tables."""
+    if db_path is None:
+        db_path = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+        
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
@@ -171,6 +176,7 @@ def init_db():
                 pit_stops INTEGER,
                 driver_number INTEGER,
                 driver_color TEXT,
+                nationality TEXT,
                 PRIMARY KEY (year, round, driver_name)
             )
         """)
@@ -230,25 +236,30 @@ def populate_2025_data(force_rebuild=False):
         
     logger.info("Database needs to be rebuilt")
     
-    # Delete existing database if it exists
+    # Create a temporary database path
+    temp_db_path = db_path + '.temp'
+    backup_db_path = db_path + '.backup'
+    
+    # If the database exists, try to create a backup
     if os.path.exists(db_path):
-        os.remove(db_path)
-        logger.info("Removed existing database")
+        try:
+            shutil.copy2(db_path, backup_db_path)
+            logger.info(f"Created backup of existing database at {backup_db_path}")
+        except Exception as e:
+            logger.warning(f"Could not create backup of database: {str(e)}")
     
-    year = 2025
-    current_date = datetime.now()
+    # Initialize new database with temporary path
+    init_db(temp_db_path)
     
-    # Initialize database first
-    init_db()
-    
-    # Connect to database
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
+    conn = None
     try:
+        # Connect to temporary database
+        conn = sqlite3.connect(temp_db_path)
+        cursor = conn.cursor()
+        
         # Fetch schedule from FastF1
         logger.info("Fetching 2025 schedule from FastF1...")
-        schedule = fastf1.get_event_schedule(year)
+        schedule = fastf1.get_event_schedule(2025)
         logger.info(f"Schedule data: {schedule}")
         
         # Process each event in the schedule
@@ -275,23 +286,24 @@ def populate_2025_data(force_rebuild=False):
                 INSERT OR REPLACE INTO race_schedule 
                 (year, round, name, date, event, country)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (year, round_num, event_name, event_date, event_name, country))
+            """, (2025, round_num, event_name, event_date, event_name, country))
             
             # Check if race has been completed
             if event_date:
                 race_date = datetime.strptime(event_date, '%Y-%m-%d')
+                current_date = datetime.now()
                 if race_date > current_date:
                     logger.info(f"Skipping {event_name} as it hasn't been completed yet")
                     continue
             
             # Get detailed event information
             try:
-                event_obj = fastf1.get_event(year, round_num)
+                event_obj = fastf1.get_event(2025, round_num)
                 logger.info(f"Event object: {event_obj}")
                 
                 # Get circuit information
                 circuit_data = {
-                    'year': year,
+                    'year': 2025,
                     'round': round_num,
                     'circuit_name': circuit_name,
                     'location': location,
@@ -319,7 +331,7 @@ def populate_2025_data(force_rebuild=False):
                 
                 # Try to get race results if available
                 try:
-                    session = fastf1.get_session(year, round_num, 'R')
+                    session = fastf1.get_session(2025, round_num, 'R')
                     session.load()
                     logger.info(f"Race session results: {session.results}")
                     
@@ -366,7 +378,7 @@ def populate_2025_data(force_rebuild=False):
                                 fastest_laps, team_color)
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (
-                                year, round_num, team, team_points[team],
+                                2025, round_num, team, team_points[team],
                                 len([t for t in team_points if team_points[t] > team_points[team]]) + 1,
                                 team_wins[team], team_podiums[team], team_fastest_laps[team],
                                 f"#{team_colors[team]}" if pd.notna(team_colors[team]) and not str(team_colors[team]).startswith('#') else str(team_colors[team])
@@ -377,7 +389,7 @@ def populate_2025_data(force_rebuild=False):
                             # Get qualifying position
                             quali_pos = None
                             try:
-                                quali = fastf1.get_session(year, round_num, 'Q')
+                                quali = fastf1.get_session(2025, round_num, 'Q')
                                 quali.load()
                                 quali_result = quali.results[quali.results['DriverNumber'] == driver['DriverNumber']]
                                 if not quali_result.empty:
@@ -391,30 +403,63 @@ def populate_2025_data(force_rebuild=False):
                             # Get pit stops
                             try:
                                 # Load the session data first
-                                session.load(weather=False, messages=False, laps=False, timing_data=False)
-                                pit_data = session.pits
-                                driver_pits = pit_data[pit_data['DriverNumber'] == driver['DriverNumber']]
-                                pit_stops = len(driver_pits[driver_pits['PitInTime'].notna()])
+                                session.load(weather=False, messages=False, laps=True)
+                                # Get pit data from laps
+                                driver_laps = session.laps.pick_drivers(driver['DriverNumber'])
+                                if not driver_laps.empty:
+                                    # Count pit stops by looking at lap time gaps
+                                    lap_times = driver_laps['LapTime'].dropna()
+                                    if not lap_times.empty:
+                                        # A pit stop typically results in a lap time > 2x the average
+                                        avg_lap_time = lap_times.mean()
+                                        pit_stops = len(lap_times[lap_times > avg_lap_time * 2])
+                                    else:
+                                        pit_stops = 0
+                                else:
+                                    pit_stops = 0
                             except Exception as e:
                                 logger.warning(f"Error getting pit stops for driver {driver['DriverNumber']}: {str(e)}")
                                 # If pit data is not available, use a reasonable default based on the round
                                 # This ensures consistent pit stop counts for each driver across races
-                                np.random.seed(round_num * 100 + driver['DriverNumber'])  # Use round and driver number as seed
+                                np.random.seed(round_num * 100 + int(driver['DriverNumber']))  # Use round and driver number as seed
                                 pit_stops = np.random.randint(1, 4)  # Most races have 1-3 pit stops
+                            
+                            # Get fastest lap time with fallback
+                            fastest_lap_time = 'N/A'
+                            try:
+                                # First try to get from the driver's data
+                                if 'FastestLap' in driver and driver['FastestLap']:
+                                    fastest_lap_time = "Fastest Lap"
+                                
+                                # If not found, try to get from laps data
+                                if fastest_lap_time == 'N/A':
+                                    try:
+                                        # Load laps data
+                                        session.load(weather=False, messages=False, laps=True)
+                                        driver_laps = session.laps.pick_drivers(driver['DriverNumber'])
+                                        if not driver_laps.empty:
+                                            fastest_lap = driver_laps['LapTime'].min()
+                                            if pd.notnull(fastest_lap):
+                                                fastest_lap_time = str(fastest_lap)
+                                    except Exception as e:
+                                        logger.warning(f"Error getting fastest lap from laps data: {str(e)}")
+                            except Exception as e:
+                                logger.warning(f"Error getting fastest lap time for driver {driver['DriverNumber']}: {str(e)}")
                             
                             cursor.execute("""
                                 INSERT OR REPLACE INTO driver_standings 
                                 (year, round, driver_name, team, points, position, 
                                 fastest_lap_time, qualifying_position, positions_gained, pit_stops,
-                                driver_number, driver_color)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                driver_number, driver_color, nationality)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (
-                                year, round_num, driver['FullName'], driver['TeamName'],
+                                2025, round_num, driver['FullName'], driver['TeamName'],
                                 driver['Points'], driver['Position'],
-                                str(driver.get('FastestLap', 'N/A')),
+                                fastest_lap_time,
                                 quali_pos or 0, positions_gained, pit_stops,
                                 driver['DriverNumber'],
-                                f"#{driver['TeamColor']}" if pd.notna(driver['TeamColor']) and not str(driver['TeamColor']).startswith('#') else str(driver['TeamColor'])
+                                f"#{driver['TeamColor']}" if pd.notna(driver['TeamColor']) and not str(driver['TeamColor']).startswith('#') else str(driver['TeamColor']),
+                                driver.get('Nationality', 'Unknown')
                             ))
                 except Exception as e:
                     logger.warning(f"Could not fetch race results for round {round_num}: {str(e)}")
@@ -430,9 +475,67 @@ def populate_2025_data(force_rebuild=False):
         
     except Exception as e:
         logger.error(f"Error populating 2025 data: {str(e)}")
-        conn.rollback()
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception as rollback_error:
+                logger.error(f"Error rolling back transaction: {str(rollback_error)}")
+        raise
     finally:
-        conn.close()
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception as close_error:
+                logger.error(f"Error closing database connection: {str(close_error)}")
+        
+        # Try to replace the old database with the new one
+        try:
+            if os.path.exists(db_path):
+                try:
+                    # Force close any existing connections
+                    temp_conn = sqlite3.connect(db_path)
+                    temp_conn.execute("PRAGMA busy_timeout = 5000")  # Wait up to 5 seconds for locks to clear
+                    temp_conn.close()
+                    
+                    # Now try to remove the old database
+                    os.remove(db_path)
+                except OSError as e:
+                    logger.error(f"Could not remove old database: {str(e)}")
+                    # If we can't remove the old database, try to restore from backup
+                    if os.path.exists(backup_db_path):
+                        try:
+                            shutil.copy2(backup_db_path, db_path)
+                            logger.info("Restored database from backup")
+                        except Exception as e2:
+                            logger.error(f"Error restoring from backup: {str(e2)}")
+                    return
+            
+            try:
+                os.rename(temp_db_path, db_path)
+                logger.info("Successfully replaced old database with new one")
+                
+                # Remove backup if everything succeeded
+                if os.path.exists(backup_db_path):
+                    os.remove(backup_db_path)
+                    logger.info("Removed backup database")
+            except OSError as e:
+                logger.error(f"Error replacing database: {str(e)}")
+                # If replacement failed, try to restore from backup
+                if os.path.exists(backup_db_path):
+                    try:
+                        shutil.copy2(backup_db_path, db_path)
+                        logger.info("Restored database from backup")
+                    except Exception as e2:
+                        logger.error(f"Error restoring from backup: {str(e2)}")
+        except Exception as e:
+            logger.error(f"Error in database replacement process: {str(e)}")
+        finally:
+            # Clean up temporary database if it still exists
+            if os.path.exists(temp_db_path):
+                try:
+                    os.remove(temp_db_path)
+                except Exception as e:
+                    logger.error(f"Error removing temporary database: {str(e)}")
 
 if __name__ == "__main__":
     populate_2025_data(force_rebuild=True) 

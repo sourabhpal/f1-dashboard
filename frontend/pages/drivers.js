@@ -3,6 +3,37 @@ import Layout from '../components/Layout';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import YearSelect from '../components/YearSelect';
+import { API_URL } from '../config';
+
+// Add country to flag emoji mapping
+const countryFlags = {
+  'Australia': '🇦🇺',
+  'Austria': '🇦🇹',
+  'Azerbaijan': '🇦🇿',
+  'Bahrain': '🇧🇭',
+  'Belgium': '🇧🇪',
+  'Brazil': '🇧🇷',
+  'Canada': '🇨🇦',
+  'China': '🇨🇳',
+  'France': '🇫🇷',
+  'Germany': '🇩🇪',
+  'Hungary': '🇭🇺',
+  'Italy': '🇮🇹',
+  'Japan': '🇯🇵',
+  'Mexico': '🇲🇽',
+  'Monaco': '🇲🇨',
+  'Netherlands': '🇳🇱',
+  'Qatar': '🇶🇦',
+  'Russia': '🇷🇺',
+  'Saudi Arabia': '🇸🇦',
+  'Singapore': '🇸🇬',
+  'Spain': '🇪🇸',
+  'Turkey': '🇹🇷',
+  'United Arab Emirates': '🇦🇪',
+  'United Kingdom': '🇬🇧',
+  'United States': '🇺🇸',
+  'Vietnam': '🇻🇳'
+};
 
 export default function Drivers() {
   const [currentYear, setCurrentYear] = useState(2025);
@@ -14,7 +45,7 @@ export default function Drivers() {
   useEffect(() => {
     const fetchAvailableYears = async () => {
       try {
-        const response = await fetch('http://localhost:8000/available-years');
+        const response = await fetch(`${API_URL}/available-years`);
         if (!response.ok) throw new Error('Failed to fetch available years');
         const data = await response.json();
         setAvailableYears(data.years || [2025, 2024, 2023, 2022]);
@@ -32,7 +63,7 @@ export default function Drivers() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:8000/standings/${currentYear}`);
+        const response = await fetch(`${API_URL}/standings/${currentYear}`);
         if (!response.ok) throw new Error('Failed to fetch driver data');
         const data = await response.json();
         setDrivers(data);
@@ -72,7 +103,7 @@ export default function Drivers() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-white">F1 Drivers</h1>
+          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>F1 Drivers</h1>
           <YearSelect
             value={currentYear}
             onChange={setCurrentYear}
@@ -99,34 +130,29 @@ export default function Drivers() {
         )}
 
         {!loading && !error && (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {drivers.map((driver, index) => (
               <motion.div
                 key={driver.driver_number}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="relative overflow-hidden"
+                className="relative overflow-hidden rounded-lg shadow-lg"
+                style={{
+                  borderLeft: `2px solid ${driver.driver_color || '#ffffff'}`,
+                  borderTop: `2px solid ${driver.driver_color || '#ffffff'}`,
+                  borderRadius: '1rem'
+                }}
               >
-                {/* Team color outlines on two edges */}
-                <div 
-                  className="absolute top-0 left-0 w-1 h-full rounded-l" 
-                  style={{ backgroundColor: driver.team_color || '#ff0000' }}
-                />
-                <div 
-                  className="absolute top-0 left-0 w-full h-1 rounded-t" 
-                  style={{ backgroundColor: driver.team_color || '#ff0000' }}
-                />
-                
-                <div className="relative h-48">
+                <div className="relative h-96">
                   {/* Driver image */}
                   <div className="absolute inset-0 flex items-center justify-center">
                     <Image
                       src={getDriverImagePath(driver.driver_name)}
                       alt={driver.driver_name}
-                      width={120}
-                      height={120}
-                      className="object-cover"
+                      width={300}
+                      height={300}
+                      className="object-contain"
                       onError={(e) => {
                         e.target.src = '/images/drivers/default.png';
                       }}
@@ -134,45 +160,53 @@ export default function Drivers() {
                   </div>
                   
                   {/* Driver number in the top right */}
-                  <div className="absolute top-2 right-2">
-                    <span 
-                      className="text-4xl font-bold" 
-                      style={{ 
-                        fontFamily: 'Audiowide, sans-serif',
-                        color: driver.team_color || '#ffffff'
-                      }}
-                    >
-                      {driver.driver_number}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <h2 
-                        className="text-lg text-white" 
+                  {driver.driver_number && (
+                    <div className="absolute top-4 right-4">
+                      <span 
+                        className="text-6xl font-bold" 
                         style={{ 
-                          fontFamily: 'Audiowide, sans-serif', 
-                          fontWeight: 'normal',
-                          letterSpacing: '0.5px',
-                          color: driver.team_color || '#ffffff'
+                          fontFamily: 'Audiowide, sans-serif',
+                          color: driver.driver_color || '#ffffff',
+                          textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)'
                         }}
                       >
-                        {formatDriverName(driver.driver_name)}
-                      </h2>
-                      <p className="text-gray-400 text-sm">{driver.team}</p>
+                        {driver.driver_number}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="p-6 bg-gray-900/80 backdrop-blur-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 
+                          className="text-xl text-white" 
+                          style={{ 
+                            fontFamily: 'Audiowide, sans-serif', 
+                            fontWeight: 'normal',
+                            letterSpacing: '0.5px',
+                            color: driver.driver_color || '#ffffff'
+                          }}
+                        >
+                          {formatDriverName(driver.driver_name)}
+                        </h2>
+                        {driver.nationality && countryFlags[driver.nationality] && (
+                          <span className="text-2xl ml-2">{countryFlags[driver.nationality]}</span>
+                        )}
+                      </div>
+                      <p className="text-gray-400 text-sm" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.team}</p>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
-                      <p className="text-gray-400 text-xs">Points</p>
-                      <p className="text-white font-bold">{driver.points}</p>
+                      <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Points</p>
+                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.points}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400 text-xs">Position</p>
-                      <p className="text-white font-bold">{driver.position}</p>
+                      <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Position</p>
+                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.position}</p>
                     </div>
                   </div>
                 </div>

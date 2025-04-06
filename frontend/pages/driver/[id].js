@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import { motion } from 'framer-motion';
 import YearSelect from '../../components/YearSelect';
+import { API_URL } from '../../config';
 
 // Function to format driver name with last name in uppercase
 const formatDriverName = (fullName) => {
@@ -28,7 +29,7 @@ export default function DriverDetails() {
   useEffect(() => {
     const fetchAvailableYears = async () => {
       try {
-        const response = await fetch('http://localhost:8000/available-years');
+        const response = await fetch(`${API_URL}/available-years`);
         if (!response.ok) throw new Error('Failed to fetch available years');
         const data = await response.json();
         setAvailableYears(data.years || [2025, 2024, 2023, 2022]);
@@ -48,7 +49,7 @@ export default function DriverDetails() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:8000/driver/${id}/${currentYear}`);
+        const response = await fetch(`${API_URL}/driver/${id}/${currentYear}`);
         if (!response.ok) throw new Error('Failed to fetch driver data');
         const data = await response.json();
         setDriver(data);
@@ -124,7 +125,7 @@ export default function DriverDetails() {
                 </span>
                 <div
                   className="w-6 h-6 rounded-full mt-2"
-                  style={{ backgroundColor: driver.team_color || '#ff0000' }}
+                  style={{ backgroundColor: driver.driver_color || '#ff0000' }}
                 />
               </div>
             </div>

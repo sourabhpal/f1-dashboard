@@ -4,6 +4,19 @@ import { motion } from 'framer-motion';
 import Image from 'next/image';
 import Layout from '../components/Layout';
 import YearSelect from '../components/YearSelect';
+import { API_URL } from '../config';
+
+// Function to format driver name with last name in uppercase
+const formatDriverName = (fullName) => {
+  if (!fullName) return '';
+  const parts = fullName.split(' ');
+  if (parts.length > 1) {
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(' ').toUpperCase();
+    return `${firstName} ${lastName}`;
+  }
+  return fullName;
+};
 
 export default function Standings() {
   const [currentYear, setCurrentYear] = useState(2025);
@@ -16,7 +29,7 @@ export default function Standings() {
   useEffect(() => {
     const fetchAvailableYears = async () => {
       try {
-        const response = await fetch('http://localhost:8000/available-years');
+        const response = await fetch(`${API_URL}/available-years`);
         if (!response.ok) throw new Error('Failed to fetch available years');
         const data = await response.json();
         setAvailableYears(Array.isArray(data.years) ? data.years : [2025, 2024, 2023, 2022]);
@@ -35,13 +48,13 @@ export default function Standings() {
       setError(null);
       try {
         // Fetch driver standings
-        const driverResponse = await fetch(`http://localhost:8000/standings/${currentYear}`);
+        const driverResponse = await fetch(`${API_URL}/standings/${currentYear}`);
         if (!driverResponse.ok) throw new Error('Failed to fetch driver standings');
         const driverData = await driverResponse.json();
         setDriverStandings(driverData);
 
         // Fetch constructor standings
-        const constructorResponse = await fetch(`http://localhost:8000/teams/${currentYear}`);
+        const constructorResponse = await fetch(`${API_URL}/teams/${currentYear}`);
         if (!constructorResponse.ok) throw new Error('Failed to fetch constructor standings');
         const constructorData = await constructorResponse.json();
         setConstructorStandings(constructorData);
@@ -66,7 +79,7 @@ export default function Standings() {
 
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-white">F1 Standings</h1>
+          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>F1 Standings</h1>
           <YearSelect
             value={currentYear}
             onChange={setCurrentYear}
@@ -96,7 +109,7 @@ export default function Standings() {
           <div className="grid gap-8">
             {/* Driver Standings */}
             <div>
-              <h2 className="text-2xl font-bold text-white mb-6">Driver Standings</h2>
+              <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Driver Standings</h2>
               <div className="grid gap-4">
                 {driverStandings.map((standing, index) => (
                   <motion.div
@@ -108,7 +121,7 @@ export default function Standings() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
-                        <div className="text-2xl font-bold" style={{ color: standing.driver_color || '#ff0000' }}>{standing.position}</div>
+                        <div className="text-2xl font-bold" style={{ color: standing.driver_color || '#ff0000', fontFamily: 'Audiowide, sans-serif', fontWeight: 'normal' }}>{standing.position}</div>
                         <div className="flex items-center space-x-4">
                           <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
                             <Image
@@ -123,12 +136,22 @@ export default function Standings() {
                             />
                           </div>
                           <div>
-                            <h2 className="text-xl font-semibold" style={{ color: standing.driver_color || '#ff0000' }}>{standing.driver_name}</h2>
-                            <p className="text-gray-400">{standing.team}</p>
+                            <h2 
+                              className="text-xl font-semibold" 
+                              style={{ 
+                                color: standing.driver_color || '#ff0000',
+                                fontFamily: 'Audiowide, sans-serif',
+                                fontWeight: 'normal',
+                                letterSpacing: '0.5px'
+                              }}
+                            >
+                              {formatDriverName(standing.driver_name)}
+                            </h2>
+                            <p className="text-gray-400" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{standing.team}</p>
                           </div>
                         </div>
                       </div>
-                      <div className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider">
+                      <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
                         {standing.points} <span className="text-sm text-gray-400">pts</span>
                       </div>
                     </div>
@@ -139,7 +162,7 @@ export default function Standings() {
 
             {/* Constructor Standings */}
             <div>
-              <h2 className="text-2xl font-bold text-white mb-6">Constructor Standings</h2>
+              <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Constructor Standings</h2>
               <div className="grid gap-4">
                 {constructorStandings.map((standing, index) => (
                   <motion.div
@@ -151,7 +174,7 @@ export default function Standings() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
-                        <div className="text-2xl font-bold" style={{ color: standing.team_color || '#ff0000' }}>{index + 1}</div>
+                        <div className="text-2xl font-bold" style={{ color: standing.team_color || '#ff0000', fontFamily: 'Roboto Variable, sans-serif' }}>{index + 1}</div>
                         <div className="flex items-center space-x-4">
                           <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
                             <Image
@@ -166,11 +189,21 @@ export default function Standings() {
                             />
                           </div>
                           <div>
-                            <h2 className="text-xl font-semibold" style={{ color: standing.team_color || '#ff0000' }}>{standing.team}</h2>
+                            <h2 
+                              className="text-xl font-semibold" 
+                              style={{ 
+                                color: standing.team_color || '#ff0000',
+                                fontFamily: 'Roboto Variable, sans-serif',
+                                fontWeight: 'normal',
+                                letterSpacing: '0.5px'
+                              }}
+                            >
+                              {standing.team}
+                            </h2>
                           </div>
                         </div>
                       </div>
-                      <div className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider">
+                      <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
                         {standing.points} <span className="text-sm text-gray-400">pts</span>
                       </div>
                     </div>

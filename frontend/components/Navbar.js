@@ -1,6 +1,6 @@
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,7 +39,7 @@ export default function Navbar() {
               </Link>
             </div>
           </div>
-          
+
           {/* Mobile menu button */}
           <div className="md:hidden">
             <button
@@ -77,23 +77,14 @@ export default function Navbar() {
             <Link href="/races" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
               Race Data
             </Link>
+            <Link href="/schedule" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
+              Schedule
+            </Link>
+            <Link href="/circuits" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
+              Circuits
+            </Link>
             <Link href="/drivers" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
               Drivers
-            </Link>
-            <Link href="/teams" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
-              Teams
-            </Link>
-            <Link href="/qualifying" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
-              Qualifying
-            </Link>
-            <Link href="/timing" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
-              Timing
-            </Link>
-            <Link href="/pit-stops" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
-              Pit Stops
-            </Link>
-            <Link href="/weather" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50">
-              Weather
             </Link>
           </div>
         </div>

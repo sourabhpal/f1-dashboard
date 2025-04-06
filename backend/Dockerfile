@@ -1,25 +1,42 @@
-# Use Python 3.9 slim image
-FROM python:3.9-slim
+FROM python:3.11-slim as builder
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy only requirements first to leverage Docker cache
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install dependencies in a virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
-COPY . .
+# Final stage
+FROM python:3.11-slim
 
-# Expose the port the app runs on
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Create cache directory with proper permissions
+RUN mkdir -p /app/cache && chmod 777 /app/cache
+
+# Copy only necessary files
+COPY f1_backend.py .
+COPY populate_2025_data.py .
+COPY populate_historical_data.py .
+
+# Create database directory with proper permissions
+RUN mkdir -p /app/data && chmod 777 /app/data
+
+# Expose port
 EXPOSE 8000
 
-# Start the application with uvicorn
+# Run the application
 CMD ["uvicorn", "f1_backend:app", "--host", "0.0.0.0", "--port", "8000"] 

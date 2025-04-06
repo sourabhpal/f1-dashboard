@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { motion } from 'framer-motion';
 import Layout from '../components/Layout';
 import Image from 'next/image';
+import { API_URL } from '../config';
 
 // Feature categories with icons
 const featureCategories = [
@@ -74,6 +75,18 @@ const countryFlags = {
   'Vietnam': '🇻🇳'
 };
 
+// Function to format driver name with last name in uppercase
+const formatDriverName = (fullName) => {
+  if (!fullName) return '';
+  const parts = fullName.split(' ');
+  if (parts.length > 1) {
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(' ').toUpperCase();
+    return `${firstName} ${lastName}`;
+  }
+  return fullName;
+};
+
 export default function Home() {
   const [standings, setStandings] = useState([]);
   const [nextRace, setNextRace] = useState(null);
@@ -93,13 +106,13 @@ export default function Home() {
       setError(null);
       try {
         // Fetch standings
-        const standingsResponse = await fetch('http://localhost:8000/standings/2025');
+        const standingsResponse = await fetch(`${API_URL}/standings/2025`);
         if (!standingsResponse.ok) throw new Error('Failed to fetch standings');
         const standingsData = await standingsResponse.json();
         setStandings(standingsData);
 
         // Fetch next race
-        const scheduleResponse = await fetch('http://localhost:8000/schedule/2025');
+        const scheduleResponse = await fetch(`${API_URL}/schedule/2025`);
         if (!scheduleResponse.ok) throw new Error('Failed to fetch schedule');
         const scheduleData = await scheduleResponse.json();
         
@@ -109,7 +122,7 @@ export default function Home() {
         setNextRace(nextRaceData);
 
         // Fetch quick stats
-        const quickStatsResponse = await fetch('http://localhost:8000/quick-stats/2025');
+        const quickStatsResponse = await fetch(`${API_URL}/quick-stats/2025`);
         if (!quickStatsResponse.ok) throw new Error('Failed to fetch quick stats');
         const quickStatsData = await quickStatsResponse.json();
         setQuickStats(quickStatsData);
@@ -181,7 +194,7 @@ export default function Home() {
 
       {/* Season Quick Stats */}
       <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 mb-8 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-6">Season Quick Stats</h2>
+        <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Season Quick Stats</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -189,12 +202,17 @@ export default function Home() {
             transition={{ delay: 0.1 }}
             className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
           >
-            <h3 className="text-lg font-semibold text-white mb-2">🏆 Most Wins</h3>
-            <p className="text-3xl font-bold mb-1" style={{ color: quickStats.mostWins.team_color || '#ff0000' }}>
-              {quickStats.mostWins.driver}
+            <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🏆 Most Wins</h3>
+            <p className="text-3xl font-bold mb-1" style={{ 
+              color: quickStats.mostWins.team_color || '#ff0000',
+              fontFamily: 'Audiowide, sans-serif',
+              fontWeight: 'normal',
+              letterSpacing: '0.5px'
+            }}>
+              {formatDriverName(quickStats.mostWins.driver)}
             </p>
-            <p className="text-gray-400 font-['Oxanium'] tracking-wider">{quickStats.mostWins.wins} wins</p>
-            <p className="text-sm text-gray-500">{quickStats.mostWins.team}</p>
+            <p className="text-gray-400 tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostWins.wins} wins</p>
+            <p className="text-sm text-gray-500" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostWins.team}</p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -202,12 +220,17 @@ export default function Home() {
             transition={{ delay: 0.2 }}
             className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
           >
-            <h3 className="text-lg font-semibold text-white mb-2">⛽ Most Pit Stops</h3>
-            <p className="text-3xl font-bold mb-1" style={{ color: quickStats.mostPitStops.team_color || '#ff0000' }}>
-              {quickStats.mostPitStops.driver}
+            <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>⛽ Most Pit Stops</h3>
+            <p className="text-3xl font-bold mb-1" style={{ 
+              color: quickStats.mostPitStops.team_color || '#ff0000',
+              fontFamily: 'Audiowide, sans-serif',
+              fontWeight: 'normal',
+              letterSpacing: '0.5px'
+            }}>
+              {formatDriverName(quickStats.mostPitStops.driver)}
             </p>
-            <p className="text-gray-400 font-['Oxanium'] tracking-wider">{quickStats.mostPitStops.pits} stops</p>
-            <p className="text-sm text-gray-500">{quickStats.mostPitStops.team}</p>
+            <p className="text-gray-400 tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPitStops.pits} stops</p>
+            <p className="text-sm text-gray-500" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPitStops.team}</p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -215,12 +238,17 @@ export default function Home() {
             transition={{ delay: 0.3 }}
             className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
           >
-            <h3 className="text-lg font-semibold text-white mb-2">🚩 Most Poles</h3>
-            <p className="text-3xl font-bold mb-1" style={{ color: quickStats.mostPoles.team_color || '#ff0000' }}>
-              {quickStats.mostPoles.driver}
+            <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🚩 Most Poles</h3>
+            <p className="text-3xl font-bold mb-1" style={{ 
+              color: quickStats.mostPoles.team_color || '#ff0000',
+              fontFamily: 'Audiowide, sans-serif',
+              fontWeight: 'normal',
+              letterSpacing: '0.5px'
+            }}>
+              {formatDriverName(quickStats.mostPoles.driver)}
             </p>
-            <p className="text-gray-400 font-['Oxanium'] tracking-wider">{quickStats.mostPoles.poles} poles</p>
-            <p className="text-sm text-gray-500">{quickStats.mostPoles.team}</p>
+            <p className="text-gray-400 tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPoles.poles} poles</p>
+            <p className="text-sm text-gray-500" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPoles.team}</p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -228,12 +256,17 @@ export default function Home() {
             transition={{ delay: 0.4 }}
             className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
           >
-            <h3 className="text-lg font-semibold text-white mb-2">🔄 Most Overtakes</h3>
-            <p className="text-3xl font-bold mb-1" style={{ color: quickStats.mostOvertakes.team_color || '#ff0000' }}>
-              {quickStats.mostOvertakes.driver}
+            <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🔄 Most Overtakes</h3>
+            <p className="text-3xl font-bold mb-1" style={{ 
+              color: quickStats.mostOvertakes.team_color || '#ff0000',
+              fontFamily: 'Audiowide, sans-serif',
+              fontWeight: 'normal',
+              letterSpacing: '0.5px'
+            }}>
+              {formatDriverName(quickStats.mostOvertakes.driver)}
             </p>
-            <p className="text-gray-400 font-['Oxanium'] tracking-wider">{quickStats.mostOvertakes.overtakes} positions</p>
-            <p className="text-sm text-gray-500">{quickStats.mostOvertakes.team}</p>
+            <p className="text-gray-400 tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostOvertakes.overtakes} positions</p>
+            <p className="text-sm text-gray-500" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostOvertakes.team}</p>
           </motion.div>
         </div>
       </div>

@@ -4,7 +4,7 @@ import Head from 'next/head';
 import Navbar from '../components/Navbar';
 import RaceResultsModal from '../components/RaceResultsModal';
 import YearSelector from '../components/YearSelector';
-import axios from 'axios';
+import { API_URL } from '../config';
 
 // Country flag mapping
 const countryFlags = {
@@ -57,18 +57,36 @@ const Schedule = () => {
   const [selectedRace, setSelectedRace] = useState(null);
   const [raceResults, setRaceResults] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const years = [2020, 2021, 2022, 2023, 2024, 2025];
+  const [availableYears, setAvailableYears] = useState([2025, 2024, 2023, 2022]);
+
+  useEffect(() => {
+    const fetchAvailableYears = async () => {
+      try {
+        const response = await fetch(`${API_URL}/available-years`);
+        if (!response.ok) throw new Error('Failed to fetch available years');
+        const data = await response.json();
+        setAvailableYears(Array.isArray(data.years) ? data.years : [2025, 2024, 2023, 2022]);
+      } catch (err) {
+        console.error('Error fetching available years:', err);
+        setAvailableYears([2025, 2024, 2023, 2022]);
+      }
+    };
+
+    fetchAvailableYears();
+  }, []);
 
   useEffect(() => {
     const fetchSchedule = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-        const response = await axios.get(`http://localhost:8000/schedule/${selectedYear}`);
-        setSchedule(response.data);
-        setError(null);
+        const response = await fetch(`${API_URL}/schedule/${selectedYear}`);
+        if (!response.ok) throw new Error('Failed to fetch schedule');
+        const data = await response.json();
+        setSchedule(data);
       } catch (err) {
-        setError('Failed to load schedule data');
         console.error('Error fetching schedule:', err);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
@@ -79,7 +97,7 @@ const Schedule = () => {
 
   const handleRaceClick = async (race) => {
     try {
-      const response = await fetch(`http://localhost:8000/race-results/${selectedYear}/${race.round}`);
+      const response = await fetch(`${API_URL}/race-results/${selectedYear}/${race.round}`);
       if (!response.ok) {
         throw new Error('Failed to fetch race results');
       }
@@ -134,7 +152,7 @@ const Schedule = () => {
             <YearSelector
               selectedYear={selectedYear}
               onYearChange={setSelectedYear}
-              years={years}
+              years={availableYears}
             />
           </div>
           

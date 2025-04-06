@@ -1,7 +1,7 @@
+import { Fragment, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect } from 'react';
 
-const RaceResultsModal = ({ isOpen, onClose, raceName, results }) => {
+export default function RaceResultsModal({ isOpen, onClose, raceName, results }) {
   // Prevent background scrolling when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -43,56 +43,53 @@ const RaceResultsModal = ({ isOpen, onClose, raceName, results }) => {
             </div>
 
             <div className="overflow-y-auto flex-grow px-6 pb-6">
-              <table className="min-w-full divide-y divide-gray-700">
-                <thead className="sticky top-0 bg-gray-800 z-10">
-                  <tr className="text-left text-sm font-medium text-gray-400">
-                    <th className="px-4 py-3">Pos</th>
-                    <th className="px-4 py-3">Driver</th>
-                    <th className="px-4 py-3">Team</th>
-                    <th className="px-4 py-3">Grid</th>
-                    <th className="px-4 py-3">Gained</th>
-                    <th className="px-4 py-3">Points</th>
-                    <th className="px-4 py-3">Pits</th>
-                    <th className="px-4 py-3">Fastest Lap</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {results?.map((result, index) => (
-                    <tr key={index} className="text-white hover:bg-gray-700 transition-colors">
-                      <td className="px-4 py-3">{result.position}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center">
-                          <div
-                            className="w-3 h-3 rounded-full mr-2"
-                            style={{ backgroundColor: result.team_color || '#ff0000' }}
-                          />
-                          {result.driver}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span style={{ color: result.team_color || '#ff0000' }}>
-                          {result.team}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{result.grid}</td>
-                      <td className="px-4 py-3">
-                        <span className={result.positions_gained > 0 ? 'text-green-500' : result.positions_gained < 0 ? 'text-red-500' : ''}>
-                          {result.positions_gained > 0 ? '+' : ''}{result.positions_gained}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{result.points}</td>
-                      <td className="px-4 py-3">{result.pit_stops}</td>
-                      <td className="px-4 py-3">{result.fastest_lap}</td>
+              {!results ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-400">Race results are not available yet.</p>
+                  <p className="text-gray-500 text-sm mt-2">This race hasn't been completed or the data is still being processed.</p>
+                </div>
+              ) : (
+                <table className="min-w-full divide-y divide-gray-700">
+                  <thead className="sticky top-0 bg-gray-800 z-10">
+                    <tr className="text-left text-sm font-medium text-gray-400">
+                      <th className="px-4 py-3">Pos</th>
+                      <th className="px-4 py-3">Driver</th>
+                      <th className="px-4 py-3">Team</th>
+                      <th className="px-4 py-3">Pos Gained</th>
+                      <th className="px-4 py-3">Pit Stops</th>
+                      <th className="px-4 py-3">Points</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {results.map((result, index) => (
+                      <tr key={index} className="text-white hover:bg-gray-700 transition-colors">
+                        <td className="px-4 py-3">{result.position}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center">
+                            <div
+                              className="w-3 h-3 rounded-full mr-2"
+                              style={{ backgroundColor: result.team_color || '#ff0000' }}
+                            />
+                            {result.driver}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">{result.team}</td>
+                        <td className="px-4 py-3">
+                          <span className={result.positions_gained > 0 ? 'text-green-500' : result.positions_gained < 0 ? 'text-red-500' : 'text-gray-400'}>
+                            {result.positions_gained > 0 ? `+${result.positions_gained}` : result.positions_gained}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">{result.pit_stops || 0}</td>
+                        <td className="px-4 py-3">{result.points}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </motion.div>
         </div>
       )}
     </AnimatePresence>
   );
-};
-
-export default RaceResultsModal; 
+} 
