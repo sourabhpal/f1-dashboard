@@ -47,6 +47,27 @@ export default function Drivers() {
     fetchDrivers();
   }, [currentYear]);
 
+  // Function to format driver name with last name in uppercase
+  const formatDriverName = (fullName) => {
+    if (!fullName) return '';
+    const parts = fullName.split(' ');
+    if (parts.length > 1) {
+      const firstName = parts[0];
+      const lastName = parts.slice(1).join(' ').toUpperCase();
+      return `${firstName} ${lastName}`;
+    }
+    return fullName;
+  };
+
+  // Function to get driver image path
+  const getDriverImagePath = (driverName) => {
+    if (!driverName) return '/images/drivers/default.png';
+    
+    // Convert driver name to lowercase and replace spaces with hyphens
+    const formattedName = driverName.toLowerCase().replace(/\s+/g, '-');
+    return `/images/drivers/${formattedName}.png`;
+  };
+
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
@@ -81,42 +102,77 @@ export default function Drivers() {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {drivers.map((driver, index) => (
               <motion.div
-                key={driver.driver_name}
+                key={driver.driver_number}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300"
-                style={{ borderLeft: `4px solid ${driver.driver_color || '#ff0000'}` }}
+                className="relative overflow-hidden"
               >
-                <div className="relative h-48 w-full bg-gray-900">
-                  <Image
-                    src={`/images/drivers/${driver.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
-                    alt={`${driver.driver_name}`}
-                    fill
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    className="object-contain p-4"
-                    style={{ mixBlendMode: 'screen' }}
-                    onError={(e) => {
-                      e.target.src = '/images/drivers/default-driver.png';
-                    }}
-                  />
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-xl font-semibold" style={{ color: driver.driver_color || '#ff0000' }}>{driver.driver_name}</h2>
-                      <p className="text-gray-400">{driver.team}</p>
-                    </div>
-                    <div className="text-2xl font-['Oxanium'] font-bold" style={{ color: driver.driver_color || '#ff0000' }}>#{driver.driver_number}</div>
+                {/* Team color outlines on two edges */}
+                <div 
+                  className="absolute top-0 left-0 w-1 h-full rounded-l" 
+                  style={{ backgroundColor: driver.team_color || '#ff0000' }}
+                />
+                <div 
+                  className="absolute top-0 left-0 w-full h-1 rounded-t" 
+                  style={{ backgroundColor: driver.team_color || '#ff0000' }}
+                />
+                
+                <div className="relative h-48">
+                  {/* Driver image */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Image
+                      src={getDriverImagePath(driver.driver_name)}
+                      alt={driver.driver_name}
+                      width={120}
+                      height={120}
+                      className="object-cover"
+                      onError={(e) => {
+                        e.target.src = '/images/drivers/default.png';
+                      }}
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center">
-                      <p className="text-gray-400 text-sm">Points</p>
-                      <p className="text-2xl font-['Oxanium'] font-bold text-white">{driver.points}</p>
+                  
+                  {/* Driver number in the top right */}
+                  <div className="absolute top-2 right-2">
+                    <span 
+                      className="text-4xl font-bold" 
+                      style={{ 
+                        fontFamily: 'Audiowide, sans-serif',
+                        color: driver.team_color || '#ffffff'
+                      }}
+                    >
+                      {driver.driver_number}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h2 
+                        className="text-lg text-white" 
+                        style={{ 
+                          fontFamily: 'Audiowide, sans-serif', 
+                          fontWeight: 'normal',
+                          letterSpacing: '0.5px',
+                          color: driver.team_color || '#ffffff'
+                        }}
+                      >
+                        {formatDriverName(driver.driver_name)}
+                      </h2>
+                      <p className="text-gray-400 text-sm">{driver.team}</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-gray-400 text-sm">Position</p>
-                      <p className="text-2xl font-['Oxanium'] font-bold text-white">{driver.position}</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <p className="text-gray-400 text-xs">Points</p>
+                      <p className="text-white font-bold">{driver.points}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-xs">Position</p>
+                      <p className="text-white font-bold">{driver.position}</p>
                     </div>
                   </div>
                 </div>

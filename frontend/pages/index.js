@@ -166,9 +166,6 @@ export default function Home() {
               <p className="text-gray-200 text-lg">
                 Comprehensive Formula 1 statistics, race results, and analysis
               </p>
-              <p className="text-gray-200 text-sm">
-                For feedback, please contact me at <a href="mailto:f1@sourabhpal.com" className="text-white hover:text-gray-300">f1@sourabhpal.com</a>
-              </p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="bg-white/10 rounded-lg p-3">

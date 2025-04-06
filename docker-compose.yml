@@ -13,6 +13,16 @@ services:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
+    develop:
+      watch:
+        - action: rebuild
+          path: ./frontend
+          target: /app
+          ignore:
+            - "frontend/node_modules"
+            - "frontend/.next"
+            - "frontend/.git"
+            - "frontend/package-lock.json"
 
   backend:
     build:
@@ -24,4 +34,16 @@ services:
       - ./backend:/app
       - ./backend/f1_data.db:/app/f1_data.db
     environment:
-      - PYTHONUNBUFFERED=1 
+      - PYTHONUNBUFFERED=1
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend
+          target: /app
+          ignore:
+            - "backend/__pycache__"
+            - "backend/.git"
+            - "backend/f1_data.db"
+            - "backend/*.pyc"
+            - "backend/.pytest_cache"
+            - "backend/*.log" 

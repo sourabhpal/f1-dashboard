@@ -185,6 +185,21 @@ def get_db_connection():
     finally:
         conn.close()
 
+# Add this function after the imports and before the first route
+def standardize_team_color(color):
+    """Standardize team color format to ensure it has a '#' prefix."""
+    if not color or pd.isna(color):
+        return '#ff0000'  # Default red color
+    
+    # Convert to string if it's not already
+    color_str = str(color)
+    
+    # If it doesn't start with '#', add it
+    if not color_str.startswith('#'):
+        color_str = f"#{color_str}"
+    
+    return color_str
+
 @app.get("/available-years")
 async def get_available_years():
     """Get list of available years in the database."""
@@ -266,7 +281,7 @@ async def get_standings(year: int):
                                         logger.info(f"Processing race {round_num} for year {year}")
                                         
                                         # Format team colors to include '#' prefix
-                                        team_colors = results['TeamColor'].apply(lambda x: f"#{x}" if pd.notna(x) and not str(x).startswith('#') else x)
+                                        team_colors = results['TeamColor'].apply(standardize_team_color)
                                         
                                         # Get fastest lap times
                                         fastest_laps = session.laps.groupby('Driver')['LapTime'].min()
@@ -314,7 +329,7 @@ async def get_standings(year: int):
                                             'driver_name': results['FullName'],
                                             'team': results['TeamName'],
                                             'points': results['Points'],
-                                            'driver_color': team_colors.fillna('#ff0000'),
+                                            'driver_color': team_colors,
                                             'driver_number': results['DriverNumber'],
                                             'fastest_lap_time': results['DriverNumber'].map(lambda x: str(fastest_laps.get(x, 'N/A'))),
                                             'qualifying_position': results['DriverNumber'].map(lambda x: quali_positions.get(x, 20)),
@@ -358,6 +373,9 @@ async def get_standings(year: int):
                                     final_standings['position'] = final_standings['points'].rank(ascending=False, method='min').astype(int)
                                     final_standings = final_standings.sort_values('position')
                                     
+                                    # Ensure team colors are standardized
+                                    final_standings['driver_color'] = final_standings['driver_color'].apply(standardize_team_color)
+                                    
                                     logger.info(f"Successfully calculated final standings for year {year}")
                                     return final_standings.to_dict(orient='records')
                         except Exception as e:
@@ -390,6 +408,11 @@ async def get_standings(year: int):
                     
                     columns = ['position', 'driver_name', 'team', 'points', 'driver_color', 'driver_number']
                     results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                    
+                    # Ensure team colors are standardized
+                    for result in results:
+                        result['driver_color'] = standardize_team_color(result['driver_color'])
+                    
                     logger.info(f"Found {len(results)} drivers in standings for year {year}")
                     return results
                 
@@ -420,6 +443,11 @@ async def get_standings(year: int):
                 
                 columns = ['position', 'driver_name', 'team', 'points', 'driver_color', 'driver_number']
                 results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                
+                # Ensure team colors are standardized
+                for result in results:
+                    result['driver_color'] = standardize_team_color(result['driver_color'])
+                
                 logger.info(f"Found {len(results)} drivers in standings for year {year}")
                 return results
                 
@@ -576,7 +604,7 @@ async def get_quick_stats(year: int):
                                         logger.info(f"Processing race {round_num} for year {year}")
                                         
                                         # Format team colors to include '#' prefix
-                                        team_colors = results['TeamColor'].apply(lambda x: f"#{x}" if pd.notna(x) and not str(x).startswith('#') else x)
+                                        team_colors = results['TeamColor'].apply(standardize_team_color)
                                         
                                         # Get fastest lap times
                                         fastest_laps = session.laps.groupby('Driver')['LapTime'].min()
@@ -624,7 +652,7 @@ async def get_quick_stats(year: int):
                                             'driver_name': results['FullName'],
                                             'team': results['TeamName'],
                                             'points': results['Points'],
-                                            'driver_color': team_colors.fillna('#ff0000'),
+                                            'driver_color': team_colors,
                                             'driver_number': results['DriverNumber'],
                                             'fastest_lap_time': results['DriverNumber'].map(lambda x: str(fastest_laps.get(x, 'N/A'))),
                                             'qualifying_position': results['DriverNumber'].map(lambda x: quali_positions.get(x, 20)),
