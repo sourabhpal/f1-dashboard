@@ -99,8 +99,59 @@ This will:
 
 6. Start the backend server:
    ```bash
-   python f1_backend.py
+   uvicorn f1_backend:app --reload
    ```
+
+### Database Backup and Restore
+
+The application includes a database backup utility that allows you to create, restore, and manage backups of your F1 data.
+
+#### Creating a Backup
+
+To create a backup of the current database:
+
+```bash
+python3 backend/backup_db.py backup
+```
+
+This will:
+- Create a timestamped backup in the `backend/backups` directory
+- Save metadata about the backup including schema version
+- Log the backup creation process
+
+#### Restoring from a Backup
+
+To restore from the most recent backup:
+
+```bash
+python3 backend/backup_db.py restore
+```
+
+To restore from a specific backup:
+
+```bash
+python3 backend/backup_db.py restore --backup-path /path/to/backup.db
+```
+
+#### Listing Available Backups
+
+To view all available backups:
+
+```bash
+python3 backend/backup_db.py list
+```
+
+This will display:
+- Timestamp of each backup
+- Schema version
+- Backup file path
+
+#### Backup Safety Features
+
+- Automatic creation of temporary backups during restore operations
+- Rollback to previous state if restore fails
+- Metadata tracking for each backup
+- Timestamp-based versioning
 
 ## Docker Commands
 
