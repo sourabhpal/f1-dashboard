@@ -25,6 +25,7 @@ export default function Standings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [availableYears, setAvailableYears] = useState([2025, 2024, 2023, 2022]);
+  const [activeTab, setActiveTab] = useState('drivers');
 
   useEffect(() => {
     const fetchAvailableYears = async () => {
@@ -107,112 +108,148 @@ export default function Standings() {
 
         {!loading && !error && (
           <div className="grid gap-8">
-            {/* Driver Standings */}
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Driver Standings</h2>
-              <div className="grid gap-4">
-                {driverStandings.map((standing, index) => (
-                  <motion.div
-                    key={standing.driver_name}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="bg-gray-800 rounded-lg p-6 shadow-lg"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="text-2xl font-bold" style={{ color: standing.driver_color || '#ff0000', fontFamily: 'Audiowide, sans-serif', fontWeight: 'normal' }}>{standing.position}</div>
-                        <div className="flex items-center space-x-4">
-                          <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
-                            <Image
-                              src={`/images/drivers/${standing.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
-                              alt={`${standing.driver_name}`}
-                              fill
-                              sizes="48px"
-                              className="object-contain"
-                              onError={(e) => {
-                                e.target.src = '/images/drivers/default-driver.png';
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <h2 
-                              className="text-xl font-semibold" 
-                              style={{ 
-                                color: standing.driver_color || '#ff0000',
-                                fontFamily: 'Audiowide, sans-serif',
-                                fontWeight: 'normal',
-                                letterSpacing: '0.5px'
-                              }}
-                            >
-                              {formatDriverName(standing.driver_name)}
-                            </h2>
-                            <p className="text-gray-400" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{standing.team}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
-                        {standing.total_points} <span className="text-sm text-gray-400">pts</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+            {/* Tab Navigation */}
+            <div className="flex space-x-4 mb-6">
+              <button
+                onClick={() => setActiveTab('drivers')}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                  activeTab === 'drivers'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+                style={{ fontFamily: 'Roboto Variable, sans-serif' }}
+              >
+                Driver Standings
+              </button>
+              <button
+                onClick={() => setActiveTab('constructors')}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                  activeTab === 'constructors'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+                style={{ fontFamily: 'Roboto Variable, sans-serif' }}
+              >
+                Constructor Standings
+              </button>
             </div>
 
-            {/* Constructor Standings */}
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Constructor Standings</h2>
-              <div className="grid gap-4">
-                {constructorStandings.map((standing, index) => (
-                  <motion.div
-                    key={standing.team}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="bg-gray-800 rounded-lg p-6 shadow-lg"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="text-2xl font-bold mr-6" style={{ color: standing.team_color || '#ff0000', fontFamily: 'Genos, sans-serif', fontWeight: '600' }}>{index + 1}</div>
-                        <div className="flex items-center space-x-6">
-                          <div className="relative w-12 h-12 bg-gray-800 rounded-lg p-1">
-                            <Image
-                              src={`/images/teams/${standing.team.toLowerCase().replace(/\s+/g, '-')}.png`}
-                              alt={`${standing.team} logo`}
-                              fill
-                              sizes="48px"
-                              className="object-contain"
-                              style={{ mixBlendMode: 'screen' }}
-                              onError={(e) => {
-                                e.target.src = '/images/teams/default-team.png';
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <h3 
-                              className="text-xl font-semibold"
-                              style={{ 
-                                color: standing.team_color || '#ff0000',
-                                fontFamily: 'Genos, sans-serif',
-                                fontWeight: '600',
-                                fontSize: '1.5rem',
-                                letterSpacing: '0.5px'
-                              }}
-                            >
-                              {standing.team}
-                            </h3>
+            {/* Driver Standings */}
+            {activeTab === 'drivers' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="grid gap-4">
+                  {driverStandings.map((standing, index) => (
+                    <motion.div
+                      key={standing.driver_name}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="bg-gray-800 rounded-lg p-6 shadow-lg"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="text-2xl font-bold" style={{ color: standing.driver_color || '#ff0000', fontFamily: 'Audiowide, sans-serif', fontWeight: 'normal' }}>{standing.position}</div>
+                          <div className="flex items-center space-x-4">
+                            <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
+                              <Image
+                                src={`/images/drivers/${standing.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
+                                alt={`${standing.driver_name}`}
+                                fill
+                                sizes="48px"
+                                className="object-contain"
+                                onError={(e) => {
+                                  e.target.src = '/images/drivers/default-driver.png';
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <h2 
+                                className="text-xl font-semibold" 
+                                style={{ 
+                                  color: standing.driver_color || '#ff0000',
+                                  fontFamily: 'Audiowide, sans-serif',
+                                  fontWeight: 'normal',
+                                  letterSpacing: '0.5px'
+                                }}
+                              >
+                                {formatDriverName(standing.driver_name)}
+                              </h2>
+                              <p className="text-gray-400" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{standing.team}</p>
+                            </div>
                           </div>
                         </div>
+                        <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+                          {standing.total_points} <span className="text-sm text-gray-400">pts</span>
+                        </div>
                       </div>
-                      <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
-                        {standing.total_points} <span className="text-sm text-gray-400">pts</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Constructor Standings */}
+            {activeTab === 'constructors' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="grid gap-4">
+                  {constructorStandings.map((standing, index) => (
+                    <motion.div
+                      key={standing.team}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="bg-gray-800 rounded-lg p-6 shadow-lg"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="text-2xl font-bold mr-6" style={{ color: standing.team_color || '#ff0000', fontFamily: 'Genos, sans-serif', fontWeight: '600' }}>{index + 1}</div>
+                          <div className="flex items-center space-x-6">
+                            <div className="relative w-12 h-12 bg-gray-800 rounded-lg p-1">
+                              <Image
+                                src={`/images/teams/${standing.team.toLowerCase().replace(/\s+/g, '-')}.png`}
+                                alt={`${standing.team} logo`}
+                                fill
+                                sizes="48px"
+                                className="object-contain"
+                                style={{ mixBlendMode: 'screen' }}
+                                onError={(e) => {
+                                  e.target.src = '/images/teams/default-team.png';
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <h3 
+                                className="text-xl font-semibold"
+                                style={{ 
+                                  color: standing.team_color || '#ff0000',
+                                  fontFamily: 'Genos, sans-serif',
+                                  fontWeight: '600',
+                                  fontSize: '1.5rem',
+                                  letterSpacing: '0.5px'
+                                }}
+                              >
+                                {standing.team}
+                              </h3>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+                          {standing.total_points} <span className="text-sm text-gray-400">pts</span>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
           </div>
         )}
       </div>
