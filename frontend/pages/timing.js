@@ -114,7 +114,7 @@ export default function Timing() {
                   >
                     <td className="py-3 px-4 text-red-500 font-bold">{data.position}</td>
                     <td className="py-3 px-4 text-white">{data.driver_name}</td>
-                    <td className="py-3 px-4 text-gray-400">{data.team}</td>
+                    <td className="py-3 px-4 text-gray-400" style={{ fontFamily: 'Genos, sans-serif', fontWeight: '500' }}>{data.team}</td>
                     <td className="py-3 px-4 text-white">{data.last_lap}</td>
                     <td className="py-3 px-4 text-white">{data.best_lap}</td>
                     <td className="py-3 px-4 text-white">{data.gap}</td>

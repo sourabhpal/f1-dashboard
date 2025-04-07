@@ -105,7 +105,7 @@ export default function Qualifying() {
                     <div className="text-2xl font-bold text-red-500">{result.position}</div>
                     <div>
                       <h2 className="text-xl font-semibold text-white">{result.driver_name}</h2>
-                      <p className="text-gray-400">{result.team}</p>
+                      <p className="text-gray-400" style={{ fontFamily: 'Genos, sans-serif', fontWeight: '500' }}>{result.team}</p>
                     </div>
                   </div>
                   <div className="text-xl font-bold text-white">{result.q3_time}</div>

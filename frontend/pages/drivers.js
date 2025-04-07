@@ -63,7 +63,7 @@ export default function Drivers() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_URL}/standings/${currentYear}`);
+        const response = await fetch(`${API_URL}/drivers/${currentYear}`);
         if (!response.ok) throw new Error('Failed to fetch driver data');
         const data = await response.json();
         setDrivers(data);
@@ -195,7 +195,7 @@ export default function Drivers() {
                           <span className="text-2xl ml-2">{countryFlags[driver.nationality]}</span>
                         )}
                       </div>
-                      <p className="text-gray-400 text-sm" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.team}</p>
+                      <p className="text-gray-400 text-sm" style={{ fontFamily: 'Genos, sans-serif', fontWeight: '500' }}>{driver.team}</p>
                     </div>
                   </div>
                   

@@ -203,7 +203,7 @@ export default function Home() {
             className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
           >
             <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🏆 Most Wins</h3>
-            <p className="text-3xl font-bold mb-1" style={{ 
+            <p className="text-2xl font-bold mb-1" style={{ 
               color: quickStats.mostWins.team_color || '#ff0000',
               fontFamily: 'Audiowide, sans-serif',
               fontWeight: 'normal',
@@ -221,7 +221,7 @@ export default function Home() {
             className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
           >
             <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>⛽ Most Pit Stops</h3>
-            <p className="text-3xl font-bold mb-1" style={{ 
+            <p className="text-2xl font-bold mb-1" style={{ 
               color: quickStats.mostPitStops.team_color || '#ff0000',
               fontFamily: 'Audiowide, sans-serif',
               fontWeight: 'normal',
@@ -239,7 +239,7 @@ export default function Home() {
             className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
           >
             <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🚩 Most Poles</h3>
-            <p className="text-3xl font-bold mb-1" style={{ 
+            <p className="text-2xl font-bold mb-1" style={{ 
               color: quickStats.mostPoles.team_color || '#ff0000',
               fontFamily: 'Audiowide, sans-serif',
               fontWeight: 'normal',
@@ -257,7 +257,7 @@ export default function Home() {
             className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
           >
             <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🔄 Most Overtakes</h3>
-            <p className="text-3xl font-bold mb-1" style={{ 
+            <p className="text-2xl font-bold mb-1" style={{ 
               color: quickStats.mostOvertakes.team_color || '#ff0000',
               fontFamily: 'Audiowide, sans-serif',
               fontWeight: 'normal',
@@ -280,7 +280,7 @@ export default function Home() {
               <div className="text-center flex flex-col justify-center">
                 <h2 className="text-2xl font-bold text-white mb-4">
                   <span className="mr-2">{countryFlags[nextRace.country] || '🏎️'}</span>
-                  {nextRace.event}
+                  {nextRace.name}
                 </h2>
                 <p className="text-gray-400 mb-6">{nextRace.date}</p>
                 <div className="flex justify-center space-x-4">
@@ -370,9 +370,14 @@ export default function Home() {
                     </div>
                     <h3 
                       className="text-lg font-medium ml-3"
-                      style={{ color: driver.driver_color || '#ff0000' }}
+                      style={{ 
+                        color: driver.driver_color || '#ff0000',
+                        fontFamily: 'Audiowide, sans-serif',
+                        fontWeight: 'normal',
+                        letterSpacing: '0.5px'
+                      }}
                     >
-                      {driver.driver_name}
+                      {formatDriverName(driver.driver_name)}
                     </h3>
                   </div>
                 </div>
@@ -402,8 +407,11 @@ export default function Home() {
                 driver_color: driver.driver_color
               };
             }
-            acc[team].points += driver.points;
-            acc[team].drivers.push(driver.driver_name);
+            // Only add points and driver if not already added
+            if (!acc[team].drivers.includes(driver.driver_name)) {
+              acc[team].points += driver.points;
+              acc[team].drivers.push(driver.driver_name);
+            }
             return acc;
           }, {}))
           .sort((a, b) => b.points - a.points)
@@ -447,7 +455,11 @@ export default function Home() {
                     <div>
                       <h3 
                         className="text-lg font-medium ml-3"
-                        style={{ color: team.driver_color || '#ff0000' }}
+                        style={{ 
+                          color: team.driver_color || '#ff0000',
+                          fontFamily: 'Genos, sans-serif',
+                          fontWeight: '600'
+                        }}
                       >
                         {team.team}
                       </h3>

@@ -89,9 +89,9 @@ export default function Teams() {
               >
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="text-xl font-semibold" style={{ color: team.team_color || '#ff0000' }}>{team.team}</h2>
+                    <h2 className="text-xl font-semibold" style={{ color: team.team_color || '#ff0000', fontFamily: 'Genos, sans-serif', fontWeight: '600' }}>{team.team}</h2>
                   </div>
-                  <div className="text-2xl font-bold" style={{ color: team.team_color || '#ff0000' }}>{index + 1}</div>
+                  <div className="text-2xl font-bold" style={{ color: team.team_color || '#ff0000', fontFamily: 'Genos, sans-serif', fontWeight: '600' }}>{index + 1}</div>
                 </div>
                 <div className="text-gray-300">
                   <p>Points: {team.points}</p>

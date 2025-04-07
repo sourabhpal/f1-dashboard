@@ -250,13 +250,29 @@ def get_driver_team(driver_name, year):
     Returns:
         str: Team name
     """
+    # Use the team from the database instead of hardcoded mapping
+    with db_lock:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT team
+                FROM driver_standings
+                WHERE year = ? AND driver_name = ?
+                ORDER BY round DESC
+                LIMIT 1
+            """, (year, driver_name))
+            result = cursor.fetchone()
+            if result:
+                return result[0]
+    
+    # Fallback to hardcoded mapping if not found in database
     team_mapping = {
         'Kimi Antonelli': 'Mercedes',
         'Isack Hadjar': 'Racing Bulls',
         'Gabriel Bortoleto': 'Kick Sauber',
         'Jack Doohan': 'Alpine',
-        'Liam Lawson': 'Racing Bulls',  # Updated from Red Bull Racing
-        'Yuki Tsunoda': 'Red Bull Racing',  # Updated from Racing Bulls
+        'Liam Lawson': 'Racing Bulls',
+        'Yuki Tsunoda': 'Red Bull Racing',
         'Pierre Gasly': 'Alpine',
         'Fernando Alonso': 'Aston Martin',
         'Carlos Sainz': 'Williams',
@@ -389,7 +405,7 @@ async def get_standings(year: int):
                             SUM(ds.points) as total_points,
                             COUNT(DISTINCT ds.round) as races_participated
                         FROM driver_standings ds
-                        JOIN latest_team lt ON ds.driver_name = lt.driver_name
+                        JOIN latest_team lt ON ds.driver_name = lt.driver_name AND ds.round = lt.max_round
                         WHERE ds.year = ?
                         GROUP BY ds.driver_name, lt.team, ds.driver_number, ds.driver_color, ds.nationality
                     )
@@ -412,7 +428,8 @@ async def get_standings(year: int):
                 formatted_results = []
                 for row in results:
                     driver_name = standardize_driver_name(row[0])
-                    team = get_driver_team(driver_name, year)
+                    # Use team directly from database instead of overriding
+                    team = row[1]
                     driver_color = standardize_team_color(row[3])
                     
                     formatted_results.append({
@@ -1804,6 +1821,60 @@ async def get_tire_strategy(year: int, round: int):
         return strategy_data
     except Exception as e:
         logger.error(f"Error fetching tire strategy: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/drivers/{year}")
+async def get_drivers(year: int):
+    """Get unique driver information for a specific year."""
+    try:
+        with db_lock:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    WITH latest_driver AS (
+                        SELECT 
+                            driver_name,
+                            team,
+                            driver_number,
+                            driver_color,
+                            nationality,
+                            MAX(round) as max_round
+                        FROM driver_standings
+                        WHERE year = ?
+                        GROUP BY driver_name
+                    )
+                    SELECT DISTINCT
+                        ld.driver_name,
+                        ld.team,
+                        ld.driver_number,
+                        ld.driver_color,
+                        ld.nationality
+                    FROM latest_driver ld
+                    ORDER BY ld.driver_name
+                """, (year,))
+                
+                results = cursor.fetchall()
+                
+                # Convert tuples to dictionaries
+                formatted_results = []
+                for row in results:
+                    driver_name = standardize_driver_name(row[0])
+                    team = row[1]
+                    driver_color = standardize_team_color(row[3])
+                    
+                    formatted_results.append({
+                        'driver_name': driver_name,
+                        'team': team,
+                        'driver_number': int(row[2]) if row[2] is not None else None,
+                        'driver_color': driver_color,
+                        'nationality': row[4]
+                    })
+                
+                logger.info(f"Found {len(formatted_results)} unique drivers for year {year}")
+                return formatted_results
+                
+    except Exception as e:
+        logger.error(f"Error fetching drivers for year {year}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

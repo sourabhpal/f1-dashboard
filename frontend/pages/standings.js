@@ -173,33 +173,33 @@ export default function Standings() {
                     className="bg-gray-800 rounded-lg p-6 shadow-lg"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="text-2xl font-bold" style={{ color: standing.team_color || '#ff0000', fontFamily: 'Roboto Variable, sans-serif' }}>{index + 1}</div>
+                      <div className="flex items-center">
+                        <div className="text-2xl font-bold" style={{ color: standing.team_color || '#ff0000', fontFamily: 'Genos, sans-serif', fontWeight: '600' }}>{index + 1}</div>
                         <div className="flex items-center space-x-4">
-                          <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
+                          <div className="relative w-12 h-12 bg-gray-800 rounded-lg p-1">
                             <Image
                               src={`/images/teams/${standing.team.toLowerCase().replace(/\s+/g, '-')}.png`}
                               alt={`${standing.team} logo`}
                               fill
                               sizes="48px"
                               className="object-contain"
+                              style={{ mixBlendMode: 'screen' }}
                               onError={(e) => {
                                 e.target.src = '/images/teams/default-team.png';
                               }}
                             />
                           </div>
                           <div>
-                            <h2 
-                              className="text-xl font-semibold" 
+                            <h3 
+                              className="text-lg font-medium"
                               style={{ 
                                 color: standing.team_color || '#ff0000',
-                                fontFamily: 'Roboto Variable, sans-serif',
-                                fontWeight: 'normal',
-                                letterSpacing: '0.5px'
+                                fontFamily: 'Genos, sans-serif',
+                                fontWeight: '600'
                               }}
                             >
                               {standing.team}
-                            </h2>
+                            </h3>
                           </div>
                         </div>
                       </div>

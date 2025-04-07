@@ -446,6 +446,15 @@ def populate_2025_data(force_rebuild=False):
                             except Exception as e:
                                 logger.warning(f"Error getting fastest lap time for driver {driver['DriverNumber']}: {str(e)}")
                             
+                            # Get driver's team
+                            team = driver['TeamName']
+                            
+                            # Fix team assignments for specific drivers
+                            if driver['FullName'] == 'Yuki Tsunoda':
+                                team = 'Red Bull Racing'
+                            elif driver['FullName'] == 'Liam Lawson':
+                                team = 'Racing Bulls'
+                            
                             cursor.execute("""
                                 INSERT OR REPLACE INTO driver_standings 
                                 (year, round, driver_name, team, points, position, 
@@ -453,7 +462,7 @@ def populate_2025_data(force_rebuild=False):
                                 driver_number, driver_color, nationality)
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (
-                                2025, round_num, driver['FullName'], driver['TeamName'],
+                                2025, round_num, driver['FullName'], team,
                                 driver['Points'], driver['Position'],
                                 fastest_lap_time,
                                 quali_pos or 0, positions_gained, pit_stops,
