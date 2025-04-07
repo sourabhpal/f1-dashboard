@@ -202,7 +202,7 @@ export default function Drivers() {
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
                       <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Points</p>
-                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.points}</p>
+                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.total_points}</p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Position</p>

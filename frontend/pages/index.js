@@ -385,7 +385,7 @@ export default function Home() {
                   className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
                   whileHover={{ scale: 1.1 }}
                 >
-                  {driver.points} <span className="text-sm text-gray-400">pts</span>
+                  {driver.total_points} <span className="text-sm text-gray-400">pts</span>
                 </motion.div>
               </div>
             </motion.div>
@@ -402,19 +402,19 @@ export default function Home() {
             if (!acc[team]) {
               acc[team] = {
                 team: team,
-                points: 0,
+                total_points: 0,
                 drivers: [],
                 driver_color: driver.driver_color
               };
             }
             // Only add points and driver if not already added
             if (!acc[team].drivers.includes(driver.driver_name)) {
-              acc[team].points += driver.points;
+              acc[team].total_points += driver.total_points;
               acc[team].drivers.push(driver.driver_name);
             }
             return acc;
           }, {}))
-          .sort((a, b) => b.points - a.points)
+          .sort((a, b) => b.total_points - a.total_points)
           .slice(0, 3)
           .map((team, index) => (
             <motion.div
@@ -471,7 +471,7 @@ export default function Home() {
                   className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
                   whileHover={{ scale: 1.1 }}
                 >
-                  {team.points} <span className="text-sm text-gray-400">pts</span>
+                  {team.total_points} <span className="text-sm text-gray-400">pts</span>
                 </motion.div>
               </div>
             </motion.div>

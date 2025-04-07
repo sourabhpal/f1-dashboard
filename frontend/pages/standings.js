@@ -54,7 +54,7 @@ export default function Standings() {
         setDriverStandings(driverData);
 
         // Fetch constructor standings
-        const constructorResponse = await fetch(`${API_URL}/teams/${currentYear}`);
+        const constructorResponse = await fetch(`${API_URL}/team_standings/${currentYear}`);
         if (!constructorResponse.ok) throw new Error('Failed to fetch constructor standings');
         const constructorData = await constructorResponse.json();
         setConstructorStandings(constructorData);
@@ -152,7 +152,7 @@ export default function Standings() {
                         </div>
                       </div>
                       <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
-                        {standing.points} <span className="text-sm text-gray-400">pts</span>
+                        {standing.total_points} <span className="text-sm text-gray-400">pts</span>
                       </div>
                     </div>
                   </motion.div>
@@ -174,8 +174,8 @@ export default function Standings() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
-                        <div className="text-2xl font-bold" style={{ color: standing.team_color || '#ff0000', fontFamily: 'Genos, sans-serif', fontWeight: '600' }}>{index + 1}</div>
-                        <div className="flex items-center space-x-4">
+                        <div className="text-2xl font-bold mr-6" style={{ color: standing.team_color || '#ff0000', fontFamily: 'Genos, sans-serif', fontWeight: '600' }}>{index + 1}</div>
+                        <div className="flex items-center space-x-6">
                           <div className="relative w-12 h-12 bg-gray-800 rounded-lg p-1">
                             <Image
                               src={`/images/teams/${standing.team.toLowerCase().replace(/\s+/g, '-')}.png`}
@@ -191,11 +191,13 @@ export default function Standings() {
                           </div>
                           <div>
                             <h3 
-                              className="text-lg font-medium"
+                              className="text-xl font-semibold"
                               style={{ 
                                 color: standing.team_color || '#ff0000',
                                 fontFamily: 'Genos, sans-serif',
-                                fontWeight: '600'
+                                fontWeight: '600',
+                                fontSize: '1.5rem',
+                                letterSpacing: '0.5px'
                               }}
                             >
                               {standing.team}
@@ -204,7 +206,7 @@ export default function Standings() {
                         </div>
                       </div>
                       <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
-                        {standing.points} <span className="text-sm text-gray-400">pts</span>
+                        {standing.total_points} <span className="text-sm text-gray-400">pts</span>
                       </div>
                     </div>
                   </motion.div>

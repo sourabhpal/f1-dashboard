@@ -217,6 +217,7 @@ def standardize_driver_name(name):
     """
     name_mapping = {
         'Andrea Kimi Antonelli': 'Kimi Antonelli',
+        'Kimi Antonelli': 'Kimi Antonelli',
         'Isack Hadjar': 'Isack Hadjar',
         'Gabriel Bortoleto': 'Gabriel Bortoleto',
         'Jack Doohan': 'Jack Doohan',
@@ -378,48 +379,124 @@ async def get_available_years():
 
 @app.get("/standings/{year}")
 async def get_standings(year: int):
-    """Get driver standings for a specific year."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get the latest team information for each driver
+            cursor.execute("""
+                WITH standardized_names AS (
+                    SELECT 
+                        CASE 
+                            WHEN driver_name LIKE '%Kimi Antonelli%' THEN 'Kimi Antonelli'
+                            ELSE driver_name 
+                        END as driver_name,
+                        team,
+                        driver_number,
+                        driver_color,
+                        nationality,
+                        round,
+                        points,
+                        year
+                    FROM driver_standings
+                ),
+                latest_team AS (
+                    SELECT 
+                        driver_name,
+                        team,
+                        driver_number,
+                        driver_color,
+                        nationality,
+                        MAX(round) as latest_round
+                    FROM standardized_names
+                    WHERE year = ?
+                    GROUP BY driver_name
+                ),
+                cumulative_points AS (
+                    SELECT 
+                        driver_name,
+                        SUM(points) as total_points,
+                        COUNT(DISTINCT round) as races_participated,
+                        MAX(round) as latest_round
+                    FROM standardized_names
+                    WHERE year = ?
+                    GROUP BY driver_name
+                )
+                SELECT 
+                    lt.driver_name,
+                    lt.team,
+                    lt.driver_number,
+                    lt.driver_color,
+                    lt.nationality,
+                    cp.total_points,
+                    cp.races_participated,
+                    DENSE_RANK() OVER (
+                        ORDER BY cp.total_points DESC, 
+                        cp.races_participated DESC,
+                        cp.latest_round DESC
+                    ) as position
+                FROM latest_team lt
+                JOIN cumulative_points cp ON lt.driver_name = cp.driver_name
+                ORDER BY position, cp.total_points DESC, cp.races_participated DESC
+            """, (year, year))
+            
+            standings = []
+            for row in cursor.fetchall():
+                standings.append({
+                    "driver_name": row[0],
+                    "team": row[1],
+                    "driver_number": row[2],
+                    "driver_color": row[3],
+                    "nationality": row[4],
+                    "total_points": row[5],
+                    "races_participated": row[6],
+                    "position": row[7]
+                })
+            
+            return standings
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/team_standings/{year}")
+async def get_team_standings(year: int):
+    """Get team standings for a specific year."""
     try:
         with db_lock:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Get driver standings with latest team information
+                # Get team standings from constructors_standings table
                 cursor.execute("""
-                    WITH latest_team AS (
+                    WITH latest_round AS (
                         SELECT 
-                            driver_name,
                             team,
                             MAX(round) as max_round
-                        FROM driver_standings
+                        FROM constructors_standings
                         WHERE year = ?
-                        GROUP BY driver_name
+                        GROUP BY team
                     ),
-                    driver_stats AS (
+                    team_stats AS (
                         SELECT 
-                            ds.driver_name,
-                            lt.team,
-                            ds.driver_number,
-                            ds.driver_color,
-                            ds.nationality,
-                            SUM(ds.points) as total_points,
-                            COUNT(DISTINCT ds.round) as races_participated
-                        FROM driver_standings ds
-                        JOIN latest_team lt ON ds.driver_name = lt.driver_name AND ds.round = lt.max_round
-                        WHERE ds.year = ?
-                        GROUP BY ds.driver_name, lt.team, ds.driver_number, ds.driver_color, ds.nationality
+                            cs.team,
+                            cs.total_points,
+                            cs.team_color,
+                            cs.wins,
+                            cs.podiums,
+                            cs.fastest_laps
+                        FROM constructors_standings cs
+                        JOIN latest_round lr ON cs.team = lr.team AND cs.round = lr.max_round
+                        WHERE cs.year = ?
                     )
                     SELECT DISTINCT
-                        ds.driver_name,
-                        ds.team,
-                        ds.driver_number,
-                        ds.driver_color,
-                        ds.nationality,
-                        ds.total_points,
-                        ds.races_participated,
-                        ROW_NUMBER() OVER (ORDER BY ds.total_points DESC) as position
-                    FROM driver_stats ds
-                    ORDER BY ds.total_points DESC
+                        ts.team,
+                        ts.total_points,
+                        ts.team_color,
+                        ts.wins,
+                        ts.podiums,
+                        ts.fastest_laps,
+                        ROW_NUMBER() OVER (ORDER BY ts.total_points DESC) as position
+                    FROM team_stats ts
+                    ORDER BY ts.total_points DESC
                 """, (year, year))
                 
                 results = cursor.fetchall()
@@ -427,45 +504,18 @@ async def get_standings(year: int):
                 # Convert tuples to dictionaries
                 formatted_results = []
                 for row in results:
-                    driver_name = standardize_driver_name(row[0])
-                    # Use team directly from database instead of overriding
-                    team = row[1]
-                    driver_color = standardize_team_color(row[3])
-                    
                     formatted_results.append({
-                        'driver_name': driver_name,
-                        'team': team,
-                        'driver_number': int(row[2]) if row[2] is not None else None,
-                        'driver_color': driver_color,
-                        'nationality': row[4],
-                        'points': row[5],
-                        'races_participated': row[6],
-                        'position': row[7]
+                        "team": row[0],
+                        "total_points": row[1],
+                        "team_color": standardize_team_color(row[2]),
+                        "wins": row[3],
+                        "podiums": row[4],
+                        "fastest_laps": row[5],
+                        "position": row[6]
                     })
                 
-                logger.info(f"Found {len(formatted_results)} drivers in standings for year {year}")
+                logger.info(f"Found {len(formatted_results)} teams in standings for year {year}")
                 return formatted_results
-                
-    except Exception as e:
-        logger.error(f"Error fetching standings for year {year}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/teams/{year}")
-async def get_team_standings(year: int):
-    """Get team standings for a specific year."""
-    try:
-        with db_lock:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT team, SUM(points) as total_points, MAX(driver_color) as team_color
-                    FROM driver_standings
-                    WHERE year = ?
-                    GROUP BY team
-                    ORDER BY total_points DESC
-                """, (year,))
-                
-                return [{"team": row[0], "points": row[1], "team_color": row[2]} for row in cursor.fetchall()]
                 
     except Exception as e:
         logger.error(f"Error fetching team standings: {str(e)}")
@@ -693,7 +743,7 @@ async def get_quick_stats(year: int):
                                                     driver_color, driver_number, fastest_lap_time,
                                                     qualifying_position, positions_gained, pit_stops
                                                 )
-                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                             """, (
                                                 year, round_num, row['position'], row['driver_name'],
                                                 row['team'], row['points'], row['driver_color'],
@@ -814,25 +864,25 @@ async def get_quick_stats(year: int):
                             "driver": most_wins[0] if most_wins else "N/A",
                             "wins": most_wins[3] if most_wins else 0,
                             "team": most_wins[1] if most_wins else "N/A",
-                            "team_color": most_wins[2] if most_wins else "#ff0000"
+                            "team_color": standardize_team_color(most_wins[2]) if most_wins else standardize_team_color(get_team_color(most_wins[1])) if most_wins and most_wins[1] else "#ff0000"
                         },
                         "mostPitStops": {
                             "driver": most_pits[0] if most_pits else "N/A",
                             "pits": most_pits[3] if most_pits else 0,
                             "team": most_pits[1] if most_pits else "N/A",
-                            "team_color": most_pits[2] if most_pits else "#ff0000"
+                            "team_color": standardize_team_color(most_pits[2]) if most_pits else standardize_team_color(get_team_color(most_pits[1])) if most_pits and most_pits[1] else "#ff0000"
                         },
                         "mostPoles": {
                             "driver": most_poles[0] if most_poles else "N/A",
                             "poles": most_poles[3] if most_poles else 0,
                             "team": most_poles[1] if most_poles else "N/A",
-                            "team_color": most_poles[2] if most_poles else "#ff0000"
+                            "team_color": standardize_team_color(most_poles[2]) if most_poles else standardize_team_color(get_team_color(most_poles[1])) if most_poles and most_poles[1] else "#ff0000"
                         },
                         "mostOvertakes": {
                             "driver": most_overtakes[0] if most_overtakes else "N/A",
                             "overtakes": most_overtakes[3] if most_overtakes else 0,
                             "team": most_overtakes[1] if most_overtakes else "N/A",
-                            "team_color": most_overtakes[2] if most_overtakes else "#ff0000"
+                            "team_color": standardize_team_color(most_overtakes[2]) if most_overtakes else standardize_team_color(get_team_color(most_overtakes[1])) if most_overtakes and most_overtakes[1] else "#ff0000"
                         }
                     }
                 
@@ -891,25 +941,25 @@ async def get_quick_stats(year: int):
                         "driver": most_wins[0] if most_wins else "N/A",
                         "wins": most_wins[3] if most_wins else 0,
                         "team": most_wins[1] if most_wins else "N/A",
-                        "team_color": most_wins[2] if most_wins else "#ff0000"
+                        "team_color": standardize_team_color(most_wins[2]) if most_wins else standardize_team_color(get_team_color(most_wins[1])) if most_wins and most_wins[1] else "#ff0000"
                     },
                     "mostPitStops": {
                         "driver": most_pits[0] if most_pits else "N/A",
                         "pits": most_pits[3] if most_pits else 0,
                         "team": most_pits[1] if most_pits else "N/A",
-                        "team_color": most_pits[2] if most_pits else "#ff0000"
+                        "team_color": standardize_team_color(most_pits[2]) if most_pits else standardize_team_color(get_team_color(most_pits[1])) if most_pits and most_pits[1] else "#ff0000"
                     },
                     "mostPoles": {
                         "driver": most_poles[0] if most_poles else "N/A",
                         "poles": most_poles[3] if most_poles else 0,
                         "team": most_poles[1] if most_poles else "N/A",
-                        "team_color": most_poles[2] if most_poles else "#ff0000"
+                        "team_color": standardize_team_color(most_poles[2]) if most_poles else standardize_team_color(get_team_color(most_poles[1])) if most_poles and most_poles[1] else "#ff0000"
                     },
                     "mostOvertakes": {
                         "driver": most_overtakes[0] if most_overtakes else "N/A",
                         "overtakes": most_overtakes[3] if most_overtakes else 0,
                         "team": most_overtakes[1] if most_overtakes else "N/A",
-                        "team_color": most_overtakes[2] if most_overtakes else "#ff0000"
+                        "team_color": standardize_team_color(most_overtakes[2]) if most_overtakes else standardize_team_color(get_team_color(most_overtakes[1])) if most_overtakes and most_overtakes[1] else "#ff0000"
                     }
                 }
                 
@@ -1875,6 +1925,166 @@ async def get_drivers(year: int):
                 
     except Exception as e:
         logger.error(f"Error fetching drivers for year {year}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def combine_duplicate_drivers():
+    """
+    Combine duplicate driver entries in the database and sum their points.
+    This is particularly useful for handling cases like 'Kimi Antonelli' vs 'Andrea Kimi Antonelli'.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get all drivers with their points
+        cursor.execute("""
+            WITH driver_points AS (
+                SELECT 
+                    driver_name,
+                    SUM(points) as total_points,
+                    COUNT(*) as count,
+                    MAX(round) as max_round
+                FROM driver_standings
+                WHERE year = 2025
+                GROUP BY driver_name
+            )
+            SELECT 
+                dp.driver_name,
+                dp.total_points,
+                dp.count,
+                dp.max_round,
+                ds.team,
+                ds.driver_color,
+                ds.driver_number,
+                ds.nationality
+            FROM driver_points dp
+            JOIN driver_standings ds ON dp.driver_name = ds.driver_name 
+                AND dp.max_round = ds.round
+            WHERE dp.count > 1
+        """)
+        
+        duplicate_drivers = cursor.fetchall()
+        
+        for driver, total_points, count, max_round, team, driver_color, driver_number, nationality in duplicate_drivers:
+            if count > 1:
+                # Get the standardized name
+                std_name = standardize_driver_name(driver)
+                
+                # Update all entries to use the standardized name
+                cursor.execute("""
+                    UPDATE driver_standings
+                    SET driver_name = ?,
+                        total_points = ?
+                    WHERE year = 2025 AND driver_name = ?
+                """, (std_name, total_points, driver))
+                
+                logger.info(f"Combined {count} entries for {driver} into {std_name} with {total_points} total points")
+        
+        conn.commit()
+        conn.close()
+        
+    except Exception as e:
+        logger.error(f"Error combining duplicate drivers: {str(e)}")
+        if conn:
+            conn.close()
+
+@app.get("/check_duplicates/{year}")
+async def check_duplicates(year: int):
+    """Check for duplicate driver entries in the database."""
+    try:
+        with db_lock:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Check for duplicate driver entries
+                cursor.execute("""
+                    SELECT 
+                        driver_name,
+                        team,
+                        round,
+                        points,
+                        total_points
+                    FROM driver_standings
+                    WHERE year = ?
+                    ORDER BY driver_name, round
+                """, (year,))
+                
+                results = cursor.fetchall()
+                
+                # Group by driver name
+                driver_entries = {}
+                for row in results:
+                    driver_name = row[0]
+                    if driver_name not in driver_entries:
+                        driver_entries[driver_name] = []
+                    driver_entries[driver_name].append({
+                        "team": row[1],
+                        "round": row[2],
+                        "points": row[3],
+                        "total_points": row[4]
+                    })
+                
+                # Find drivers with multiple entries
+                duplicates = {
+                    driver: entries
+                    for driver, entries in driver_entries.items()
+                    if len(entries) > 1
+                }
+                
+                return duplicates
+                
+    except Exception as e:
+        logger.error(f"Error checking duplicates: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/fix_antonelli_data")
+async def fix_antonelli_data():
+    """Fix the data for Kimi Antonelli by combining points from both name variations."""
+    try:
+        with db_lock:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Get all data for Antonelli
+                cursor.execute("""
+                    SELECT year, round, driver_name, team, points, total_points
+                    FROM driver_standings
+                    WHERE driver_name LIKE '%Antonelli%'
+                    ORDER BY year, round
+                """)
+                
+                antonelli_data = cursor.fetchall()
+                
+                if not antonelli_data:
+                    return {"message": "No Antonelli data found"}
+                
+                # Calculate total points for Antonelli
+                total_points = sum(row[4] for row in antonelli_data)
+                races_participated = len(antonelli_data)
+                
+                # Get the latest team info
+                latest_round = max(row[1] for row in antonelli_data)
+                latest_team = next(row[3] for row in antonelli_data if row[1] == latest_round)
+                
+                # Update all Antonelli entries to use the standardized name and correct total points
+                cursor.execute("""
+                    UPDATE driver_standings
+                    SET driver_name = 'Kimi Antonelli',
+                        total_points = ?
+                    WHERE driver_name LIKE '%Antonelli%'
+                """, (total_points,))
+                
+                conn.commit()
+                
+                return {
+                    "message": "Antonelli data fixed",
+                    "total_points": total_points,
+                    "races_participated": races_participated,
+                    "latest_team": latest_team
+                }
+                
+    except Exception as e:
+        logger.error(f"Error fixing Antonelli data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

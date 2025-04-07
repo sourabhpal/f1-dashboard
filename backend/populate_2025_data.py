@@ -8,9 +8,17 @@ import time
 import hashlib
 import numpy as np
 import shutil
+from tqdm import tqdm
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with a cleaner format
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+
+# Prevent duplicate logs from FastF1
+logging.getLogger('fastf1').propagate = False
 logger = logging.getLogger(__name__)
 
 # Set up FastF1 cache
@@ -54,6 +62,7 @@ def get_schema_hash():
         driver_name TEXT,
         team TEXT,
         points INTEGER,
+        total_points INTEGER,
         position INTEGER,
         fastest_lap_time TEXT,
         qualifying_position INTEGER,
@@ -70,6 +79,7 @@ def get_schema_hash():
         round INTEGER,
         team TEXT,
         points INTEGER,
+        total_points INTEGER,
         position INTEGER,
         wins INTEGER,
         podiums INTEGER,
@@ -169,6 +179,7 @@ def init_db(db_path=None):
                 driver_name TEXT,
                 team TEXT,
                 points INTEGER,
+                total_points INTEGER,
                 position INTEGER,
                 fastest_lap_time TEXT,
                 qualifying_position INTEGER,
@@ -188,6 +199,7 @@ def init_db(db_path=None):
                 round INTEGER,
                 team TEXT,
                 points INTEGER,
+                total_points INTEGER,
                 position INTEGER,
                 wins INTEGER,
                 podiums INTEGER,
@@ -227,14 +239,246 @@ def init_db(db_path=None):
     finally:
         conn.close()
 
+def load_session_data(year, round_num, session_type='R'):
+    """Load and cache session data efficiently."""
+    try:
+        session = fastf1.get_session(year, round_num, session_type)
+        logger.info(f"Loading {session_type} session data for Round {round_num}")
+        
+        # Load all required data at once
+        session.load(
+            weather=False,
+            messages=False,
+            laps=True,
+            telemetry=True
+        )
+        
+        return session
+    except Exception as e:
+        logger.error(f"Error loading {session_type} session data for Round {round_num}: {str(e)}")
+        return None
+
+def standardize_driver_name(name):
+    """
+    Standardize driver names to ensure consistency.
+    
+    Args:
+        name (str): Driver name to standardize
+        
+    Returns:
+        str: Standardized driver name
+    """
+    name_mapping = {
+        'Andrea Kimi Antonelli': 'Kimi Antonelli',
+        'Kimi Antonelli': 'Kimi Antonelli',
+        'Isack Hadjar': 'Isack Hadjar',
+        'Gabriel Bortoleto': 'Gabriel Bortoleto',
+        'Jack Doohan': 'Jack Doohan',
+        'Liam Lawson': 'Liam Lawson',
+        'Yuki Tsunoda': 'Yuki Tsunoda',
+        'Pierre Gasly': 'Pierre Gasly',
+        'Fernando Alonso': 'Fernando Alonso',
+        'Carlos Sainz': 'Carlos Sainz',
+        'Lewis Hamilton': 'Lewis Hamilton',
+        'Charles Leclerc': 'Charles Leclerc',
+        'Lance Stroll': 'Lance Stroll',
+        'Esteban Ocon': 'Esteban Ocon',
+        'Oliver Bearman': 'Oliver Bearman',
+        'Nico Hulkenberg': 'Nico Hulkenberg',
+        'Alexander Albon': 'Alexander Albon',
+        'George Russell': 'George Russell',
+        'Oscar Piastri': 'Oscar Piastri',
+        'Lando Norris': 'Lando Norris',
+        'Max Verstappen': 'Max Verstappen'
+    }
+    return name_mapping.get(name, name)
+
+def process_race_data(session, round_num, cursor, year=2025):
+    """Process race data efficiently in batches."""
+    if session is None or session.results is None:
+        return
+    
+    try:
+        # Prepare batch data
+        driver_data = []
+        team_data = {}
+        
+        # Get qualifying positions once
+        quali_positions = {}
+        try:
+            quali_session = load_session_data(year, round_num, 'Q')
+            if quali_session and quali_session.results is not None:
+                quali_positions = dict(zip(
+                    quali_session.results['DriverNumber'],
+                    quali_session.results['Position']
+                ))
+        except Exception as e:
+            logger.warning(f"Could not load qualifying data for Round {round_num}: {str(e)}")
+        
+        # Process all drivers at once
+        for _, driver in session.results.iterrows():
+            driver_number = driver['DriverNumber']
+            driver_name = standardize_driver_name(driver['FullName'])  # Standardize the driver name
+            team = driver['TeamName']
+            points = driver['Points']
+            position = driver['Position']
+            
+            # Calculate positions gained
+            quali_pos = quali_positions.get(driver_number, position)
+            positions_gained = quali_pos - position
+            
+            # Get pit stops efficiently
+            pit_stops = 0
+            try:
+                driver_laps = session.laps.pick_drivers(driver_number)
+                if not driver_laps.empty:
+                    lap_times = driver_laps['LapTime'].dropna()
+                    if not lap_times.empty:
+                        avg_lap_time = lap_times.mean()
+                        pit_stops = len(lap_times[lap_times > avg_lap_time * 2])
+            except Exception as e:
+                logger.warning(f"Error calculating pit stops for {driver_name}: {str(e)}")
+                pit_stops = np.random.randint(1, 4)
+            
+            # Get fastest lap
+            fastest_lap_time = 'N/A'
+            try:
+                if 'FastestLap' in driver and driver['FastestLap']:
+                    fastest_lap_time = "Fastest Lap"
+                elif not driver_laps.empty:
+                    fastest_lap = driver_laps['LapTime'].min()
+                    if pd.notnull(fastest_lap):
+                        fastest_lap_time = str(fastest_lap)
+            except Exception as e:
+                logger.warning(f"Error getting fastest lap for {driver_name}: {str(e)}")
+            
+            # Prepare driver data
+            driver_data.append((
+                year, round_num, driver_name, team, points, 0,  # total_points will be updated later
+                position, fastest_lap_time, quali_pos, positions_gained,
+                pit_stops, driver_number, driver['TeamColor'],
+                driver.get('Nationality', 'Unknown')
+            ))
+            
+            # Update team data
+            if team not in team_data:
+                team_data[team] = {
+                    'points': 0,
+                    'wins': 0,
+                    'podiums': 0,
+                    'fastest_laps': 0,
+                    'color': driver['TeamColor']
+                }
+            
+            team_data[team]['points'] += points
+            if position == 1:
+                team_data[team]['wins'] += 1
+            if position <= 3:
+                team_data[team]['podiums'] += 1
+            if driver.get('FastestLap', False):
+                team_data[team]['fastest_laps'] += 1
+        
+        # Batch insert driver data
+        cursor.executemany("""
+            INSERT OR REPLACE INTO driver_standings 
+            (year, round, driver_name, team, points, total_points, position,
+            fastest_lap_time, qualifying_position, positions_gained, pit_stops,
+            driver_number, driver_color, nationality)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, driver_data)
+        
+        # Batch insert team data
+        team_standings = [
+            (year, round_num, team, data['points'], 0,  # total_points will be updated later
+             len([t for t in team_data if team_data[t]['points'] > data['points']]) + 1,
+             data['wins'], data['podiums'], data['fastest_laps'],
+             f"#{data['color']}" if pd.notna(data['color']) and not str(data['color']).startswith('#') else str(data['color']))
+            for team, data in team_data.items()
+        ]
+        
+        cursor.executemany("""
+            INSERT OR REPLACE INTO constructors_standings 
+            (year, round, team, points, total_points, position, wins, podiums,
+            fastest_laps, team_color)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, team_standings)
+        
+        # Update total points after each race
+        update_total_points(cursor, year)
+        
+        logger.info(f"Successfully processed data for Round {round_num}")
+        
+    except Exception as e:
+        logger.error(f"Error processing race data for Round {round_num}: {str(e)}")
+        raise
+
+def update_total_points(cursor, year=2025):
+    """Update total points for drivers and teams efficiently."""
+    try:
+        # Update driver total points
+        cursor.execute("""
+            WITH driver_points AS (
+                SELECT 
+                    driver_name,
+                    round,
+                    SUM(points) OVER (
+                        PARTITION BY driver_name 
+                        ORDER BY round
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                    ) as total_points
+                FROM driver_standings
+                WHERE year = ?
+            )
+            UPDATE driver_standings
+            SET total_points = (
+                SELECT dp.total_points 
+                FROM driver_points dp
+                WHERE dp.driver_name = driver_standings.driver_name
+                AND dp.round = driver_standings.round
+            )
+            WHERE year = ?
+        """, (year, year))
+        
+        # Update team total points
+        cursor.execute("""
+            WITH team_points AS (
+                SELECT 
+                    team,
+                    round,
+                    SUM(points) OVER (
+                        PARTITION BY team 
+                        ORDER BY round
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                    ) as total_points
+                FROM constructors_standings
+                WHERE year = ?
+            )
+            UPDATE constructors_standings
+            SET total_points = (
+                SELECT tp.total_points 
+                FROM team_points tp
+                WHERE tp.team = constructors_standings.team
+                AND tp.round = constructors_standings.round
+            )
+            WHERE year = ?
+        """, (year, year))
+        
+        logger.info("Successfully updated total points")
+        
+    except Exception as e:
+        logger.error(f"Error updating total points: {str(e)}")
+        raise
+
 def populate_2025_data(force_rebuild=False):
     """Populate the database with 2025 season data from FastF1 API."""
+    start_time = time.time()
+    
     # Check if rebuild is needed
     if not force_rebuild and not needs_rebuild():
         logger.info("Database is up to date, no rebuild needed")
         return
-        
-    logger.info("Database needs to be rebuilt")
+    
+    logger.info("Starting database rebuild...")
     
     # Create a temporary database path
     temp_db_path = db_path + '.temp'
@@ -260,28 +504,25 @@ def populate_2025_data(force_rebuild=False):
         # Fetch schedule from FastF1
         logger.info("Fetching 2025 schedule from FastF1...")
         schedule = fastf1.get_event_schedule(2025)
-        logger.info(f"Schedule data: {schedule}")
         
-        # Process each event in the schedule
-        for _, event in schedule.iterrows():
+        # Process each event in the schedule with progress bar
+        for _, event in tqdm(schedule.iterrows(), total=len(schedule), desc="Processing races"):
             round_num = event['RoundNumber']
-            logger.info(f"Processing round {round_num}")
             
             # Skip testing events (round 0)
             if round_num == 0:
                 continue
-                
+            
             # Get event details
             event_name = event['EventName']
             circuit_name = event['CircuitName'] if 'CircuitName' in event else event['EventName']
             location = event['Location'] if 'Location' in event else ''
             country = event['Country']
             event_date = pd.to_datetime(event['EventDate']).strftime('%Y-%m-%d') if pd.notna(event['EventDate']) else None
-            event_format = event['EventFormat'] if 'EventFormat' in event else 'conventional'
             
-            logger.info(f"Event details: name={event_name}, date={event_date}, country={country}")
+            logger.info(f"Processing {event_name} (Round {round_num})")
             
-            # Insert into race_schedule
+            # Insert race schedule
             cursor.execute("""
                 INSERT OR REPLACE INTO race_schedule 
                 (year, round, name, date, event, country)
@@ -296,255 +537,48 @@ def populate_2025_data(force_rebuild=False):
                     logger.info(f"Skipping {event_name} as it hasn't been completed yet")
                     continue
             
-            # Get detailed event information
-            try:
-                event_obj = fastf1.get_event(2025, round_num)
-                logger.info(f"Event object: {event_obj}")
-                
-                # Get circuit information
-                circuit_data = {
-                    'year': 2025,
-                    'round': round_num,
-                    'circuit_name': circuit_name,
-                    'location': location,
-                    'country': country,
-                    'circuit_length': getattr(event_obj, 'CircuitLength', 0.0),
-                    'number_of_laps': getattr(event_obj, 'NumberOfLaps', 0),
-                    'first_grand_prix': getattr(event_obj, 'FirstGrandPrix', 0),
-                    'lap_record': getattr(event_obj, 'LapRecord', 'N/A'),
-                    'track_map': getattr(event_obj, 'TrackMap', 'N/A')
-                }
-                
-                logger.info(f"Circuit data: {circuit_data}")
-                
-                cursor.execute("""
-                    INSERT OR REPLACE INTO circuits 
-                    (year, round, circuit_name, location, country, circuit_length, 
-                    number_of_laps, first_grand_prix, lap_record, track_map)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    circuit_data['year'], circuit_data['round'], circuit_data['circuit_name'],
-                    circuit_data['location'], circuit_data['country'], circuit_data['circuit_length'],
-                    circuit_data['number_of_laps'], circuit_data['first_grand_prix'],
-                    circuit_data['lap_record'], circuit_data['track_map']
-                ))
-                
-                # Try to get race results if available
-                try:
-                    session = fastf1.get_session(2025, round_num, 'R')
-                    session.load()
-                    logger.info(f"Race session results: {session.results}")
-                    
-                    if session.results is not None:
-                        # Calculate constructors standings for this race
-                        team_points = {}
-                        team_wins = {}
-                        team_podiums = {}
-                        team_fastest_laps = {}
-                        team_colors = {}
-                        
-                        for _, driver in session.results.iterrows():
-                            team = driver['TeamName']
-                            points = driver['Points']
-                            position = driver['Position']
-                            team_color = driver['TeamColor']
-                            
-                            logger.info(f"Driver result: team={team}, points={points}, position={position}")
-                            
-                            # Initialize team stats if not exists
-                            if team not in team_points:
-                                team_points[team] = 0
-                                team_wins[team] = 0
-                                team_podiums[team] = 0
-                                team_fastest_laps[team] = 0
-                                team_colors[team] = team_color
-                            
-                            # Update team stats
-                            team_points[team] += points
-                            if position == 1:
-                                team_wins[team] += 1
-                            if position <= 3:
-                                team_podiums[team] += 1
-                            if driver.get('FastestLap', False):
-                                team_fastest_laps[team] += 1
-                        
-                        logger.info(f"Team stats: {team_points}")
-                        
-                        # Store constructors standings
-                        for team in team_points:
-                            cursor.execute("""
-                                INSERT OR REPLACE INTO constructors_standings 
-                                (year, round, team, points, position, wins, podiums, 
-                                fastest_laps, team_color)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (
-                                2025, round_num, team, team_points[team],
-                                len([t for t in team_points if team_points[t] > team_points[team]]) + 1,
-                                team_wins[team], team_podiums[team], team_fastest_laps[team],
-                                f"#{team_colors[team]}" if pd.notna(team_colors[team]) and not str(team_colors[team]).startswith('#') else str(team_colors[team])
-                            ))
-                        
-                        # Store driver standings
-                        for _, driver in session.results.iterrows():
-                            # Get qualifying position
-                            quali_pos = None
-                            try:
-                                quali = fastf1.get_session(2025, round_num, 'Q')
-                                quali.load()
-                                quali_result = quali.results[quali.results['DriverNumber'] == driver['DriverNumber']]
-                                if not quali_result.empty:
-                                    quali_pos = quali_result.iloc[0]['Position']
-                            except:
-                                quali_pos = 0
-                            
-                            # Calculate positions gained
-                            positions_gained = (quali_pos or 0) - driver['Position'] if quali_pos else 0
-                            
-                            # Get pit stops
-                            try:
-                                # Load the session data first
-                                session.load(weather=False, messages=False, laps=True)
-                                # Get pit data from laps
-                                driver_laps = session.laps.pick_drivers(driver['DriverNumber'])
-                                if not driver_laps.empty:
-                                    # Count pit stops by looking at lap time gaps
-                                    lap_times = driver_laps['LapTime'].dropna()
-                                    if not lap_times.empty:
-                                        # A pit stop typically results in a lap time > 2x the average
-                                        avg_lap_time = lap_times.mean()
-                                        pit_stops = len(lap_times[lap_times > avg_lap_time * 2])
-                                    else:
-                                        pit_stops = 0
-                                else:
-                                    pit_stops = 0
-                            except Exception as e:
-                                logger.warning(f"Error getting pit stops for driver {driver['DriverNumber']}: {str(e)}")
-                                # If pit data is not available, use a reasonable default based on the round
-                                # This ensures consistent pit stop counts for each driver across races
-                                np.random.seed(round_num * 100 + int(driver['DriverNumber']))  # Use round and driver number as seed
-                                pit_stops = np.random.randint(1, 4)  # Most races have 1-3 pit stops
-                            
-                            # Get fastest lap time with fallback
-                            fastest_lap_time = 'N/A'
-                            try:
-                                # First try to get from the driver's data
-                                if 'FastestLap' in driver and driver['FastestLap']:
-                                    fastest_lap_time = "Fastest Lap"
-                                
-                                # If not found, try to get from laps data
-                                if fastest_lap_time == 'N/A':
-                                    try:
-                                        # Load laps data
-                                        session.load(weather=False, messages=False, laps=True)
-                                        driver_laps = session.laps.pick_drivers(driver['DriverNumber'])
-                                        if not driver_laps.empty:
-                                            fastest_lap = driver_laps['LapTime'].min()
-                                            if pd.notnull(fastest_lap):
-                                                fastest_lap_time = str(fastest_lap)
-                                    except Exception as e:
-                                        logger.warning(f"Error getting fastest lap from laps data: {str(e)}")
-                            except Exception as e:
-                                logger.warning(f"Error getting fastest lap time for driver {driver['DriverNumber']}: {str(e)}")
-                            
-                            # Get driver's team
-                            team = driver['TeamName']
-                            
-                            # Fix team assignments for specific drivers
-                            if driver['FullName'] == 'Yuki Tsunoda':
-                                team = 'Red Bull Racing'
-                            elif driver['FullName'] == 'Liam Lawson':
-                                team = 'Racing Bulls'
-                            
-                            cursor.execute("""
-                                INSERT OR REPLACE INTO driver_standings 
-                                (year, round, driver_name, team, points, position, 
-                                fastest_lap_time, qualifying_position, positions_gained, pit_stops,
-                                driver_number, driver_color, nationality)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (
-                                2025, round_num, driver['FullName'], team,
-                                driver['Points'], driver['Position'],
-                                fastest_lap_time,
-                                quali_pos or 0, positions_gained, pit_stops,
-                                driver['DriverNumber'],
-                                f"#{driver['TeamColor']}" if pd.notna(driver['TeamColor']) and not str(driver['TeamColor']).startswith('#') else str(driver['TeamColor']),
-                                driver.get('Nationality', 'Unknown')
-                            ))
-                except Exception as e:
-                    logger.warning(f"Could not fetch race results for round {round_num}: {str(e)}")
-                    
-            except Exception as e:
-                logger.warning(f"Error processing event {event_name}: {str(e)}")
+            # Load and process race data
+            session = load_session_data(2025, round_num)
+            if session:
+                process_race_data(session, round_num, cursor)
             
             # Add a small delay to avoid rate limiting
-            time.sleep(1)
+            time.sleep(0.5)
+        
+        # Update total points after processing all races
+        update_total_points(cursor)
         
         conn.commit()
-        logger.info("Successfully populated all 2025 data from FastF1")
+        logger.info("Successfully populated all 2025 data")
         
     except Exception as e:
         logger.error(f"Error populating 2025 data: {str(e)}")
         if conn is not None:
-            try:
-                conn.rollback()
-            except Exception as rollback_error:
-                logger.error(f"Error rolling back transaction: {str(rollback_error)}")
+            conn.rollback()
         raise
     finally:
         if conn is not None:
-            try:
-                conn.close()
-            except Exception as close_error:
-                logger.error(f"Error closing database connection: {str(close_error)}")
+            conn.close()
         
-        # Try to replace the old database with the new one
+        # Replace old database with new one
         try:
             if os.path.exists(db_path):
-                try:
-                    # Force close any existing connections
-                    temp_conn = sqlite3.connect(db_path)
-                    temp_conn.execute("PRAGMA busy_timeout = 5000")  # Wait up to 5 seconds for locks to clear
-                    temp_conn.close()
-                    
-                    # Now try to remove the old database
-                    os.remove(db_path)
-                except OSError as e:
-                    logger.error(f"Could not remove old database: {str(e)}")
-                    # If we can't remove the old database, try to restore from backup
-                    if os.path.exists(backup_db_path):
-                        try:
-                            shutil.copy2(backup_db_path, db_path)
-                            logger.info("Restored database from backup")
-                        except Exception as e2:
-                            logger.error(f"Error restoring from backup: {str(e2)}")
-                    return
+                os.remove(db_path)
+            os.rename(temp_db_path, db_path)
+            logger.info("Successfully replaced old database with new one")
             
-            try:
-                os.rename(temp_db_path, db_path)
-                logger.info("Successfully replaced old database with new one")
-                
-                # Remove backup if everything succeeded
-                if os.path.exists(backup_db_path):
-                    os.remove(backup_db_path)
-                    logger.info("Removed backup database")
-            except OSError as e:
-                logger.error(f"Error replacing database: {str(e)}")
-                # If replacement failed, try to restore from backup
-                if os.path.exists(backup_db_path):
-                    try:
-                        shutil.copy2(backup_db_path, db_path)
-                        logger.info("Restored database from backup")
-                    except Exception as e2:
-                        logger.error(f"Error restoring from backup: {str(e2)}")
+            # Remove backup if everything succeeded
+            if os.path.exists(backup_db_path):
+                os.remove(backup_db_path)
         except Exception as e:
-            logger.error(f"Error in database replacement process: {str(e)}")
-        finally:
-            # Clean up temporary database if it still exists
-            if os.path.exists(temp_db_path):
-                try:
-                    os.remove(temp_db_path)
-                except Exception as e:
-                    logger.error(f"Error removing temporary database: {str(e)}")
+            logger.error(f"Error replacing database: {str(e)}")
+            if os.path.exists(backup_db_path):
+                shutil.copy2(backup_db_path, db_path)
+                logger.info("Restored database from backup")
+    
+    end_time = time.time()
+    duration = end_time - start_time
+    logger.info(f"Database rebuild completed in {duration:.2f} seconds")
 
 if __name__ == "__main__":
     populate_2025_data(force_rebuild=True) 

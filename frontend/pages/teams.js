@@ -31,7 +31,7 @@ export default function Teams() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:8000/teams/${currentYear}`);
+        const response = await fetch(`http://localhost:8000/team_standings/${currentYear}`);
         if (!response.ok) throw new Error('Failed to fetch team data');
         const data = await response.json();
         setTeams(data);
@@ -94,7 +94,7 @@ export default function Teams() {
                   <div className="text-2xl font-bold" style={{ color: team.team_color || '#ff0000', fontFamily: 'Genos, sans-serif', fontWeight: '600' }}>{index + 1}</div>
                 </div>
                 <div className="text-gray-300">
-                  <p>Points: {team.points}</p>
+                  <p>Points: {team.total_points}</p>
                 </div>
               </motion.div>
             ))}

@@ -24,6 +24,9 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Copy requirements.txt to final stage
+COPY --from=builder /app/requirements.txt .
+
 # Create cache directory with proper permissions
 RUN mkdir -p /app/cache && chmod 777 /app/cache
 
