@@ -426,7 +426,10 @@ async def get_standings(year: int):
                     lt.driver_name,
                     lt.team,
                     lt.driver_number,
-                    lt.driver_color,
+                    CASE 
+                        WHEN lt.driver_color NOT LIKE '#%' THEN '#' || lt.driver_color
+                        ELSE lt.driver_color
+                    END as driver_color,
                     lt.nationality,
                     cp.total_points,
                     cp.races_participated,
@@ -461,61 +464,67 @@ async def get_standings(year: int):
 async def get_team_standings(year: int):
     """Get team standings for a specific year."""
     try:
-        with db_lock:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Get team standings from constructors_standings table
-                cursor.execute("""
-                    WITH latest_round AS (
-                        SELECT 
-                            team,
-                            MAX(round) as max_round
-                        FROM constructors_standings
-                        WHERE year = ?
-                        GROUP BY team
-                    ),
-                    team_stats AS (
-                        SELECT 
-                            cs.team,
-                            cs.total_points,
-                            cs.team_color,
-                            cs.wins,
-                            cs.podiums,
-                            cs.fastest_laps
-                        FROM constructors_standings cs
-                        JOIN latest_round lr ON cs.team = lr.team AND cs.round = lr.max_round
-                        WHERE cs.year = ?
-                    )
-                    SELECT DISTINCT
-                        ts.team,
-                        ts.total_points,
-                        ts.team_color,
-                        ts.wins,
-                        ts.podiums,
-                        ts.fastest_laps,
-                        ROW_NUMBER() OVER (ORDER BY ts.total_points DESC) as position
-                    FROM team_stats ts
-                    ORDER BY ts.total_points DESC
-                """, (year, year))
-                
-                results = cursor.fetchall()
-                
-                # Convert tuples to dictionaries
-                formatted_results = []
-                for row in results:
-                    formatted_results.append({
-                        "team": row[0],
-                        "total_points": row[1],
-                        "team_color": standardize_team_color(row[2]),
-                        "wins": row[3],
-                        "podiums": row[4],
-                        "fastest_laps": row[5],
-                        "position": row[6]
-                    })
-                
-                logger.info(f"Found {len(formatted_results)} teams in standings for year {year}")
-                return formatted_results
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get team standings with cumulative points
+            cursor.execute("""
+                WITH latest_team AS (
+                    SELECT 
+                        team,
+                        team_color,
+                        MAX(round) as latest_round
+                    FROM constructors_standings
+                    WHERE year = ?
+                    GROUP BY team
+                ),
+                cumulative_stats AS (
+                    SELECT 
+                        team,
+                        SUM(points) as total_points,
+                        SUM(wins) as wins,
+                        SUM(podiums) as podiums,
+                        SUM(fastest_laps) as fastest_laps,
+                        MAX(round) as latest_round
+                    FROM constructors_standings
+                    WHERE year = ?
+                    GROUP BY team
+                )
+                SELECT 
+                    lt.team,
+                    cs.total_points,
+                    CASE 
+                        WHEN lt.team_color NOT LIKE '#%' THEN '#' || lt.team_color
+                        ELSE lt.team_color
+                    END as team_color,
+                    cs.wins,
+                    cs.podiums,
+                    cs.fastest_laps,
+                    DENSE_RANK() OVER (
+                        ORDER BY cs.total_points DESC,
+                        cs.latest_round DESC
+                    ) as position
+                FROM latest_team lt
+                JOIN cumulative_stats cs ON lt.team = cs.team
+                ORDER BY position, cs.total_points DESC
+            """, (year, year))
+            
+            results = cursor.fetchall()
+            
+            # Convert tuples to dictionaries
+            formatted_results = []
+            for row in results:
+                formatted_results.append({
+                    "team": row[0],
+                    "total_points": row[1],
+                    "team_color": row[2],
+                    "wins": row[3],
+                    "podiums": row[4],
+                    "fastest_laps": row[5],
+                    "position": row[6]
+                })
+            
+            return formatted_results
                 
     except Exception as e:
         logger.error(f"Error fetching team standings: {str(e)}")
