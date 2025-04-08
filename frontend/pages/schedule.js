@@ -148,10 +148,10 @@ const Schedule = () => {
       <main className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold text-white">Race Schedule</h1>
+            <h1 className="text-4xl font-bold text-white page-title">F1 Schedule</h1>
             <YearSelector
-              selectedYear={selectedYear}
-              onYearChange={setSelectedYear}
+              value={selectedYear}
+              onChange={setSelectedYear}
               years={availableYears}
             />
           </div>

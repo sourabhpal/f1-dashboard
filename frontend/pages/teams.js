@@ -50,7 +50,7 @@ export default function Teams() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-white">F1 Teams</h1>
+          <h1 className="text-4xl font-bold text-white page-title">F1 Teams</h1>
           <YearSelect
             value={currentYear}
             onChange={setCurrentYear}

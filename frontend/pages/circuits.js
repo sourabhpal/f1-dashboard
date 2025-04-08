@@ -105,7 +105,7 @@ export default function Circuits() {
       <Navbar />
 
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-white mb-8">Race Circuits</h1>
+        <h1 className="text-4xl font-bold text-white mb-8 page-title">F1 Circuits</h1>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {circuits.map((circuit, index) => (

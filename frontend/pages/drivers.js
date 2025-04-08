@@ -103,7 +103,7 @@ export default function Drivers() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>F1 Drivers</h1>
+          <h1 className="text-4xl font-bold text-white page-title">F1 Drivers</h1>
           <YearSelect
             value={currentYear}
             onChange={setCurrentYear}

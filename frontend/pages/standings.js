@@ -80,7 +80,7 @@ export default function Standings() {
 
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>F1 Standings</h1>
+          <h1 className="text-4xl font-bold text-white page-title">F1 Standings</h1>
           <YearSelect
             value={currentYear}
             onChange={setCurrentYear}
@@ -109,26 +109,24 @@ export default function Standings() {
         {!loading && !error && (
           <div className="grid gap-8">
             {/* Tab Navigation */}
-            <div className="flex space-x-4 mb-6">
+            <div className="grid grid-cols-2 gap-4 mb-6">
               <button
                 onClick={() => setActiveTab('drivers')}
-                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                className={`w-full px-6 py-4 rounded-lg font-semibold transition-all duration-200 tab-button ${
                   activeTab === 'drivers'
                     ? 'bg-red-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
-                style={{ fontFamily: 'Roboto Variable, sans-serif' }}
               >
                 Driver Standings
               </button>
               <button
                 onClick={() => setActiveTab('constructors')}
-                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+                className={`w-full px-6 py-4 rounded-lg font-semibold transition-all duration-200 tab-button ${
                   activeTab === 'constructors'
                     ? 'bg-red-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
-                style={{ fontFamily: 'Roboto Variable, sans-serif' }}
               >
                 Constructor Standings
               </button>

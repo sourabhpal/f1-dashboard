@@ -164,16 +164,15 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      {/* Modern Title Card */}
       <div className="container mx-auto px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-8 shadow-xl max-w-7xl mx-auto"
+          className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-8 shadow-xl max-w-7xl mx-auto mb-12"
         >
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="text-center md:text-left mb-4 md:mb-0">
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
+              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 page-title">
                 Monty's F1 Dashboard
               </h1>
               <p className="text-gray-200 text-lg">
@@ -329,153 +328,159 @@ export default function Home() {
         </div>
       )}
 
-      {/* Current Driver Standings */}
+      {/* Current Driver and Constructor Standings */}
       <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 mb-8 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-6">Current Driver Standings</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {standings.slice(0, 3).map((driver, index) => (
-            <motion.div
-              key={driver.driver_name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ 
-                scale: 1.02,
-                y: -5,
-                transition: { duration: 0.2 }
-              }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <motion.div 
-                    className="text-3xl font-bold mr-4"
-                    style={{ color: driver.driver_color || '#ff0000' }}
-                    whileHover={{ scale: 1.1 }}
-                  >
-                    {driver.position}
-                  </motion.div>
-                  <div className="flex items-center">
-                    <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
-                      <Image
-                        src={`/images/drivers/${driver.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
-                        alt={`${driver.driver_name}`}
-                        fill
-                        sizes="48px"
-                        className="object-contain"
-                        onError={(e) => {
-                          e.target.src = '/images/drivers/default-driver.png';
-                        }}
-                      />
-                    </div>
-                    <h3 
-                      className="text-lg font-medium ml-3"
-                      style={{ 
-                        color: driver.driver_color || '#ff0000',
-                        fontFamily: 'Audiowide, sans-serif',
-                        fontWeight: 'normal',
-                        letterSpacing: '0.5px'
-                      }}
-                    >
-                      {formatDriverName(driver.driver_name)}
-                    </h3>
-                  </div>
-                </div>
-                <motion.div 
-                  className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
-                  whileHover={{ scale: 1.1 }}
+        <h2 className="text-2xl font-bold text-white mb-6 page-title text-center">Current Standings</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Driver Standings */}
+          <div>
+            <h3 className="text-xl font-bold text-white mb-4 page-title">Driver Standings</h3>
+            <div className="grid gap-6">
+              {standings.slice(0, 3).map((driver, index) => (
+                <motion.div
+                  key={driver.driver_name}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ 
+                    scale: 1.02,
+                    y: -5,
+                    transition: { duration: 0.2 }
+                  }}
+                  className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
                 >
-                  {driver.total_points} <span className="text-sm text-gray-400">pts</span>
-                </motion.div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* Current Constructors Standings */}
-      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 mb-8 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-6">Current Constructors Standings</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {Object.values(standings.reduce((acc, driver) => {
-            const team = driver.team;
-            if (!acc[team]) {
-              acc[team] = {
-                team: team,
-                total_points: 0,
-                drivers: [],
-                driver_color: driver.driver_color
-              };
-            }
-            // Only add points and driver if not already added
-            if (!acc[team].drivers.includes(driver.driver_name)) {
-              acc[team].total_points += driver.total_points;
-              acc[team].drivers.push(driver.driver_name);
-            }
-            return acc;
-          }, {}))
-          .sort((a, b) => b.total_points - a.total_points)
-          .slice(0, 3)
-          .map((team, index) => (
-            <motion.div
-              key={team.team}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              whileHover={{ 
-                scale: 1.02,
-                y: -5,
-                transition: { duration: 0.2 }
-              }}
-              className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <motion.div 
-                    className="text-3xl font-bold mr-4"
-                    style={{ color: team.driver_color || '#ff0000' }}
-                    whileHover={{ scale: 1.1 }}
-                  >
-                    {index + 1}
-                  </motion.div>
-                  <div className="flex items-center space-x-4">
-                    <div className="relative w-12 h-12 bg-gray-800 rounded-lg p-1">
-                      <Image
-                        src={`/images/teams/${team.team.toLowerCase().replace(/\s+/g, '-')}.png`}
-                        alt={`${team.team} logo`}
-                        fill
-                        sizes="48px"
-                        className="object-contain"
-                        style={{ mixBlendMode: 'screen' }}
-                        onError={(e) => {
-                          e.target.src = '/images/teams/default-team.png';
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <h3 
-                        className="text-lg font-medium ml-3"
-                        style={{ 
-                          color: team.driver_color || '#ff0000',
-                          fontFamily: 'Genos, sans-serif',
-                          fontWeight: '600'
-                        }}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <motion.div 
+                        className="text-3xl font-bold mr-4"
+                        style={{ color: driver.driver_color || '#ff0000' }}
+                        whileHover={{ scale: 1.1 }}
                       >
-                        {team.team}
-                      </h3>
-                      <p className="text-gray-400 text-sm ml-3">{team.drivers.join(' / ')}</p>
+                        {driver.position}
+                      </motion.div>
+                      <div className="flex items-center">
+                        <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
+                          <Image
+                            src={`/images/drivers/${driver.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
+                            alt={`${driver.driver_name}`}
+                            fill
+                            sizes="48px"
+                            className="object-contain"
+                            onError={(e) => {
+                              e.target.src = '/images/drivers/default-driver.png';
+                            }}
+                          />
+                        </div>
+                        <h3 
+                          className="text-lg font-medium ml-3"
+                          style={{ 
+                            color: driver.driver_color || '#ff0000',
+                            fontFamily: 'Audiowide, sans-serif',
+                            fontWeight: 'normal',
+                            letterSpacing: '0.5px'
+                          }}
+                        >
+                          {formatDriverName(driver.driver_name)}
+                        </h3>
+                      </div>
                     </div>
+                    <motion.div 
+                      className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
+                      whileHover={{ scale: 1.1 }}
+                    >
+                      {driver.total_points} <span className="text-sm text-gray-400">pts</span>
+                    </motion.div>
                   </div>
-                </div>
-                <motion.div 
-                  className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
-                  whileHover={{ scale: 1.1 }}
-                >
-                  {team.total_points} <span className="text-sm text-gray-400">pts</span>
                 </motion.div>
-              </div>
-            </motion.div>
-          ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Constructor Standings */}
+          <div>
+            <h3 className="text-xl font-bold text-white mb-4 page-title">Constructor Standings</h3>
+            <div className="grid gap-6">
+              {Object.values(standings.reduce((acc, driver) => {
+                const team = driver.team;
+                if (!acc[team]) {
+                  acc[team] = {
+                    team: team,
+                    total_points: 0,
+                    drivers: [],
+                    driver_color: driver.driver_color
+                  };
+                }
+                // Only add points and driver if not already added
+                if (!acc[team].drivers.includes(driver.driver_name)) {
+                  acc[team].total_points += driver.total_points;
+                  acc[team].drivers.push(driver.driver_name);
+                }
+                return acc;
+              }, {}))
+              .sort((a, b) => b.total_points - a.total_points)
+              .slice(0, 3)
+              .map((team, index) => (
+                <motion.div
+                  key={team.team}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ 
+                    scale: 1.02,
+                    y: -5,
+                    transition: { duration: 0.2 }
+                  }}
+                  className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <motion.div 
+                        className="text-3xl font-bold mr-4"
+                        style={{ color: team.driver_color || '#ff0000' }}
+                        whileHover={{ scale: 1.1 }}
+                      >
+                        {index + 1}
+                      </motion.div>
+                      <div className="flex items-center space-x-4">
+                        <div className="relative w-12 h-12 bg-gray-800 rounded-lg p-1">
+                          <Image
+                            src={`/images/teams/${team.team.toLowerCase().replace(/\s+/g, '-')}.png`}
+                            alt={`${team.team} logo`}
+                            fill
+                            sizes="48px"
+                            className="object-contain"
+                            style={{ mixBlendMode: 'screen' }}
+                            onError={(e) => {
+                              e.target.src = '/images/teams/default-team.png';
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <h3 
+                            className="text-lg font-medium"
+                            style={{ 
+                              color: team.driver_color || '#ff0000',
+                              fontFamily: 'Genos, sans-serif',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {team.team}
+                          </h3>
+                          <p className="text-gray-400 text-sm">{team.drivers.join(' / ')}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <motion.div 
+                      className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
+                      whileHover={{ scale: 1.1 }}
+                    >
+                      {team.total_points} <span className="text-sm text-gray-400">pts</span>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
