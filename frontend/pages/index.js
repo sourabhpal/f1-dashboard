@@ -94,10 +94,10 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [quickStats, setQuickStats] = useState({
-    mostWins: { driver: '', wins: 0, team: '' },
-    mostPitStops: { driver: '', pits: 0, team: '' },
-    mostPoles: { driver: '', poles: 0, team: '' },
-    mostOvertakes: { driver: '', overtakes: 0, team: '' }
+    mostWins: { driver: '', wins: 0, team: '', team_color: '#ff0000' },
+    mostPitStops: { driver: '', pits: 0, team: '', team_color: '#ff0000' },
+    mostPoles: { driver: '', poles: 0, team: '', team_color: '#ff0000' },
+    mostOvertakes: { driver: '', overtakes: 0, team: '', team_color: '#ff0000' }
   });
 
   useEffect(() => {

@@ -43,7 +43,6 @@ services:
           ignore:
             - "backend/__pycache__"
             - "backend/.git"
-            - "backend/f1_data.db"
             - "backend/*.pyc"
             - "backend/.pytest_cache"
             - "backend/*.log" 

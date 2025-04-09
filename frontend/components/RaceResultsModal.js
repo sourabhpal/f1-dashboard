@@ -7,11 +7,10 @@ export default function RaceResultsModal({ isOpen, onClose, raceName, results })
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = 'auto';
+      document.body.style.overflow = 'unset';
     }
-    
     return () => {
-      document.body.style.overflow = 'auto';
+      document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
 
@@ -20,44 +19,42 @@ export default function RaceResultsModal({ isOpen, onClose, raceName, results })
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            transition={{ duration: 0.2 }}
+            className="relative w-full max-w-4xl p-6 mx-4 bg-gray-900 rounded-lg shadow-xl"
           >
-            <div className="p-6 flex-shrink-0">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-white">{raceName} - Race Results</h2>
-                <button
-                  onClick={onClose}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
 
-            <div className="overflow-y-auto flex-grow px-6 pb-6">
-              {!results ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-400">Race results are not available yet.</p>
-                  <p className="text-gray-500 text-sm mt-2">This race hasn't been completed or the data is still being processed.</p>
-                </div>
-              ) : (
+            <div className="space-y-4">
+              <h2 className="text-2xl font-bold text-white">{raceName}</h2>
+
+              {results && results.length > 0 ? (
                 <table className="min-w-full divide-y divide-gray-700">
-                  <thead className="sticky top-0 bg-gray-800 z-10">
-                    <tr className="text-left text-sm font-medium text-gray-400">
+                  <thead>
+                    <tr className="text-left text-gray-300">
                       <th className="px-4 py-3">Pos</th>
                       <th className="px-4 py-3">Driver</th>
                       <th className="px-4 py-3">Team</th>
-                      <th className="px-4 py-3">Pos Gained</th>
-                      <th className="px-4 py-3">Pit Stops</th>
+                      <th className="px-4 py-3">Gained</th>
+                      <th className="px-4 py-3">Stops</th>
                       <th className="px-4 py-3">Points</th>
+                      {results[0].sprint_position !== undefined && (
+                        <>
+                          <th className="px-4 py-3">Sprint Pos</th>
+                          <th className="px-4 py-3">Sprint Pts</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
@@ -81,10 +78,18 @@ export default function RaceResultsModal({ isOpen, onClose, raceName, results })
                         </td>
                         <td className="px-4 py-3">{result.pit_stops || 0}</td>
                         <td className="px-4 py-3">{result.points}</td>
+                        {result.sprint_position !== undefined && (
+                          <>
+                            <td className="px-4 py-3">{result.sprint_position || '-'}</td>
+                            <td className="px-4 py-3">{result.sprint_points || '-'}</td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              ) : (
+                <p className="text-gray-400">No results available</p>
               )}
             </div>
           </motion.div>

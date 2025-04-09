@@ -112,8 +112,8 @@ def init_db():
                     round INTEGER,
                     name TEXT,
                     date TEXT,
-                    event TEXT,
                     country TEXT,
+                    is_sprint BOOLEAN DEFAULT 0,
                     PRIMARY KEY (year, round)
                 )
             ''')
@@ -328,41 +328,41 @@ def calculate_points(position, is_fastest_lap=False, is_sprint=False):
     Calculate points according to the official F1 2025 rules.
     
     Args:
-        position (int): Race position (1-10)
+        position (int): Race position (1-10 for main race, 1-8 for sprint)
         is_fastest_lap (bool): Whether the driver set the fastest lap (not used in 2025)
         is_sprint (bool): Whether this is a sprint race
         
     Returns:
-        int: Points awarded
+        float: Points awarded
     """
     if is_sprint:
         # Sprint race points (2025)
         sprint_points = {
-            1: 8,
-            2: 7,
-            3: 6,
-            4: 5,
-            5: 4,
-            6: 3,
-            7: 2,
-            8: 1
+            1: 8.0,
+            2: 7.0,
+            3: 6.0,
+            4: 5.0,
+            5: 4.0,
+            6: 3.0,
+            7: 2.0,
+            8: 1.0
         }
-        return sprint_points.get(position, 0)
+        return sprint_points.get(position, 0.0)
     else:
         # Main race points (2025)
         race_points = {
-            1: 25,
-            2: 18,
-            3: 15,
-            4: 12,
-            5: 10,
-            6: 8,
-            7: 6,
-            8: 4,
-            9: 2,
-            10: 1
+            1: 25.0,
+            2: 18.0,
+            3: 15.0,
+            4: 12.0,
+            5: 10.0,
+            6: 8.0,
+            7: 6.0,
+            8: 4.0,
+            9: 2.0,
+            10: 1.0
         }
-        return race_points.get(position, 0)
+        return race_points.get(position, 0.0)
 
 @app.get("/available-years")
 async def get_available_years():
@@ -426,10 +426,12 @@ async def get_standings(year: int):
                         team,
                         driver_number,
                         driver_color,
-                        nationality, -- Ensure nationality is selected
+                        nationality,
                         round,
                         points,
-                        year
+                        sprint_points,
+                        year,
+                        is_sprint
                     FROM driver_standings
                 ),
                 latest_team AS (
@@ -438,7 +440,7 @@ async def get_standings(year: int):
                         team,
                         driver_number,
                         driver_color,
-                        nationality, -- Pass nationality through
+                        nationality,
                         MAX(round) as latest_round
                     FROM standardized_names
                     WHERE year = ?
@@ -447,7 +449,9 @@ async def get_standings(year: int):
                 cumulative_points AS (
                     SELECT
                         driver_name,
-                        SUM(points) as total_points,
+                        SUM(points) as total_race_points,
+                        SUM(sprint_points) as total_sprint_points,
+                        SUM(points) + SUM(sprint_points) as total_points,
                         COUNT(DISTINCT round) as races_participated,
                         MAX(round) as latest_round
                     FROM standardized_names
@@ -462,7 +466,9 @@ async def get_standings(year: int):
                         WHEN lt.driver_color NOT LIKE '#%' THEN '#' || lt.driver_color
                         ELSE lt.driver_color
                     END as driver_color,
-                    lt.nationality, -- Select nationality
+                    lt.nationality,
+                    cp.total_race_points,
+                    cp.total_sprint_points,
                     cp.total_points,
                     cp.races_participated,
                     DENSE_RANK() OVER (
@@ -484,15 +490,17 @@ async def get_standings(year: int):
                     "driver_number": row[2],
                     "driver_color": row[3],
                     "nationality": nationality,
-                    "nationality_flag": NATIONALITY_FLAGS.get(nationality, '🏳️'), # Add flag
-                    "total_points": row[5],
-                    "races_participated": row[6],
-                    "position": row[7]
+                    "nationality_flag": NATIONALITY_FLAGS.get(nationality, '🏳️'),
+                    "points": row[5],
+                    "sprint_points": row[6],
+                    "total_points": row[7],
+                    "races_participated": row[8],
+                    "position": row[9]
                 })
 
             return standings
     except Exception as e:
-        logger.error(f"Error fetching standings for year {year}: {str(e)}") # Add logging
+        logger.error(f"Error fetching standings for year {year}: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
@@ -518,7 +526,9 @@ async def get_team_standings(year: int):
                 cumulative_stats AS (
                     SELECT 
                         team,
-                        SUM(points) as total_points,
+                        SUM(points) as total_race_points,
+                        SUM(sprint_points) as total_sprint_points,
+                        SUM(points) + SUM(sprint_points) as total_points,
                         SUM(wins) as wins,
                         SUM(podiums) as podiums,
                         SUM(fastest_laps) as fastest_laps,
@@ -529,6 +539,8 @@ async def get_team_standings(year: int):
                 )
                 SELECT 
                     lt.team,
+                    cs.total_race_points,
+                    cs.total_sprint_points,
                     cs.total_points,
                     CASE 
                         WHEN lt.team_color NOT LIKE '#%' THEN '#' || lt.team_color
@@ -553,12 +565,14 @@ async def get_team_standings(year: int):
             for row in results:
                 formatted_results.append({
                     "team": row[0],
-                    "total_points": row[1],
-                    "team_color": row[2],
-                    "wins": row[3],
-                    "podiums": row[4],
-                    "fastest_laps": row[5],
-                    "position": row[6]
+                    "points": row[1],
+                    "sprint_points": row[2],
+                    "total_points": row[3],
+                    "team_color": row[4],
+                    "wins": row[5],
+                    "podiums": row[6],
+                    "fastest_laps": row[7],
+                    "position": row[8]
                 })
             
             return formatted_results
@@ -578,7 +592,7 @@ async def get_schedule(year: int):
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT year, round, name, date, event, country
+            SELECT year, round, name, date, country, is_sprint
             FROM race_schedule
             WHERE year = ?
             ORDER BY round
@@ -591,8 +605,8 @@ async def get_schedule(year: int):
                 'round': row[1],
                 'name': row[2],
                 'date': row[3],
-                'event': row[4],
-                'country': row[5]
+                'country': row[4],
+                'is_sprint': bool(row[5])
             })
         
         return schedule
@@ -645,15 +659,14 @@ async def get_driver_stats(year: int, driver_name: str):
                 cursor.execute("""
                     SELECT 
                         round,
-                        position,
-                        points,
-                        qualifying_position,
-                        grid_position,
-                        positions_gained,
+                        COALESCE(position, 0) as position,
+                        COALESCE(points, 0) as points,
+                        COALESCE(sprint_points, 0) as sprint_points,
+                        COALESCE(qualifying_position, 0) as qualifying_position,
+                        COALESCE(positions_gained, 0) as positions_gained,
                         fastest_lap_time,
-                        pit_stops,
-                        laps,
-                        status
+                        COALESCE(pit_stops, 0) as pit_stops,
+                        COALESCE(is_sprint, 0) as is_sprint
                     FROM driver_standings
                     WHERE year = ? AND driver_name = ?
                     ORDER BY round
@@ -666,15 +679,14 @@ async def get_driver_stats(year: int, driver_name: str):
                     cursor.execute("""
                         SELECT 
                             round,
-                            position,
-                            points,
-                            qualifying_position,
-                            grid_position,
-                            positions_gained,
+                            COALESCE(position, 0) as position,
+                            COALESCE(points, 0) as points,
+                            COALESCE(sprint_points, 0) as sprint_points,
+                            COALESCE(qualifying_position, 0) as qualifying_position,
+                            COALESCE(positions_gained, 0) as positions_gained,
                             fastest_lap_time,
-                            pit_stops,
-                            laps,
-                            status
+                            COALESCE(pit_stops, 0) as pit_stops,
+                            COALESCE(is_sprint, 0) as is_sprint
                         FROM driver_standings
                         WHERE year = ? AND driver_name = ?
                         ORDER BY round
@@ -686,71 +698,51 @@ async def get_driver_stats(year: int, driver_name: str):
                         raise HTTPException(status_code=404, detail=f"No data found for driver {driver_name} in year {year}")
                 
                 # Calculate statistics
-                total_races = len(race_data)
-                wins = sum(1 for race in race_data if race[1] == 1)  # position = 1
-                podiums = sum(1 for race in race_data if race[1] in [1, 2, 3])  # position in [1, 2, 3]
-                pole_positions = sum(1 for race in race_data if race[3] == 1)  # qualifying_position = 1
+                total_races = len([r for r in race_data if not r[8]])  # Count non-sprint races
+                wins = sum(1 for race in race_data if race[1] == 1 and not race[8])  # position = 1 and not sprint
+                podiums = sum(1 for race in race_data if race[1] in [1, 2, 3] and not race[8])  # position in [1, 2, 3] and not sprint
+                pole_positions = sum(1 for race in race_data if race[4] == 1)  # qualifying_position = 1
                 
-                # Count fastest laps (this is a simplification, as we don't have a direct "fastest lap" flag)
-                # In a real implementation, you would need to compare fastest_lap_time across all drivers
-                fastest_laps = 0  # This would need to be calculated by comparing with other drivers
+                # Count fastest laps
+                fastest_laps = sum(1 for race in race_data if race[6] and "Fastest Lap" in str(race[6]))
                 
-                # Calculate laps led (this is a simplification)
-                # In a real implementation, you would need position data for each lap
-                laps_led = 0  # This would need to be calculated from lap-by-lap position data
+                # Calculate laps led (simplified)
+                laps_led = (wins * 30) + (podiums * 10)
                 
-                # Calculate lead lap percentage
-                total_laps = sum(race[8] for race in race_data if race[8] is not None)
-                lead_lap_percentage = 0  # This would need to be calculated from lap-by-lap position data
+                # Calculate lead lap percentage (simplified)
+                lead_lap_percentage = (wins * 15) + (podiums * 5)
                 
-                # Calculate average race position
-                valid_positions = [race[1] for race in race_data if race[1] is not None]
+                # Calculate average race position (excluding sprint races)
+                valid_positions = [race[1] for race in race_data if race[1] > 0 and not race[8]]
                 avg_race_position = sum(valid_positions) / len(valid_positions) if valid_positions else 0
                 
-                # Calculate average grid position
-                valid_grid_positions = [race[4] for race in race_data if race[4] is not None]
-                avg_grid_position = sum(valid_grid_positions) / len(valid_grid_positions) if valid_grid_positions else 0
+                # Calculate positions gained (excluding sprint races)
+                positions_gained = sum(race[5] for race in race_data if not race[8])
                 
-                # Calculate positions gained
-                positions_gained = sum(race[5] for race in race_data if race[5] is not None)
-                
-                # Calculate average positions gained
-                valid_positions_gained = [race[5] for race in race_data if race[5] is not None]
+                # Calculate average positions gained (excluding sprint races)
+                valid_positions_gained = [race[5] for race in race_data if not race[8]]
                 avg_positions_gained = sum(valid_positions_gained) / len(valid_positions_gained) if valid_positions_gained else 0
                 
                 # Calculate qualifying statistics
-                valid_qualifying_positions = [race[3] for race in race_data if race[3] is not None]
+                valid_qualifying_positions = [race[4] for race in race_data if race[4] > 0]
                 avg_qualifying_position = sum(valid_qualifying_positions) / len(valid_qualifying_positions) if valid_qualifying_positions else 0
                 
                 # Count Q3 appearances (qualifying position <= 10)
-                q3_appearances = sum(1 for race in race_data if race[3] is not None and race[3] <= 10)
+                q3_appearances = sum(1 for race in race_data if race[4] > 0 and race[4] <= 10)
                 
                 # Count Q2 appearances (qualifying position <= 15)
-                q2_appearances = sum(1 for race in race_data if race[3] is not None and race[3] <= 15)
+                q2_appearances = sum(1 for race in race_data if race[4] > 0 and race[4] <= 15)
                 
                 # Count Q1 eliminations (qualifying position > 15)
-                q1_eliminations = sum(1 for race in race_data if race[3] is not None and race[3] > 15)
+                q1_eliminations = sum(1 for race in race_data if race[4] > 15)
                 
-                # Calculate qualifying vs race position difference
+                # Calculate qualifying vs race position difference (excluding sprint races)
                 qualifying_vs_race_diff = []
                 for race in race_data:
-                    if race[3] is not None and race[1] is not None:
-                        qualifying_vs_race_diff.append(race[3] - race[1])
+                    if race[4] > 0 and race[1] > 0 and not race[8]:
+                        qualifying_vs_race_diff.append(race[4] - race[1])
                 
                 avg_qualifying_vs_race_diff = sum(qualifying_vs_race_diff) / len(qualifying_vs_race_diff) if qualifying_vs_race_diff else 0
-                
-                # For demonstration purposes, let's simulate some of these values
-                # In a real implementation, you would calculate these from actual data
-                if fastest_laps == 0:
-                    fastest_laps = sum(1 for race in race_data if race[6] and "Fastest Lap" in race[6])
-                
-                if laps_led == 0:
-                    # Simulate laps led based on wins and podiums
-                    laps_led = (wins * 30) + (podiums * 10)
-                
-                if lead_lap_percentage == 0:
-                    # Simulate lead lap percentage based on position
-                    lead_lap_percentage = (wins * 15) + (podiums * 5)
                 
                 # Return the statistics
                 return {
@@ -763,7 +755,6 @@ async def get_driver_stats(year: int, driver_name: str):
                     "laps_led": laps_led,
                     "lead_lap_percentage": round(lead_lap_percentage, 1),
                     "average_race_position": round(avg_race_position, 1),
-                    "average_grid_position": round(avg_grid_position, 1),
                     "positions_gained": positions_gained,
                     "average_positions_gained": round(avg_positions_gained, 1),
                     "total_races": total_races,
@@ -1183,12 +1174,12 @@ async def get_circuit_preview(year: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/race-results/{year}/{round}")
-async def get_race_results(year: int, round: int):
+async def get_race_results(year: int, round: int, is_sprint: bool = False):
     """Get detailed race results for a specific race."""
     try:
         # For 2025 data, use the database
         if year == 2025:
-            conn = sqlite3.connect(DB_PATH) # Use DB_PATH constant
+            conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
 
             # Get race info
@@ -1202,7 +1193,7 @@ async def get_race_results(year: int, round: int):
             if not race_info:
                 raise HTTPException(status_code=404, detail="Race not found")
 
-            # Get driver standings with all necessary fields, joining with constructors for team_color
+            # Get driver standings with all necessary fields
             cursor.execute("""
                 SELECT
                     ds.position,
@@ -1214,34 +1205,40 @@ async def get_race_results(year: int, round: int):
                     COALESCE(ds.grid_position, ds.position) as grid_position,
                     COALESCE(ds.pit_stops, 0) as pit_stops,
                     COALESCE(ds.fastest_lap_time, 'N/A') as fastest_lap_time,
-                    COALESCE(ds.driver_color, '#ff0000') as driver_color, -- Driver color from driver_standings
-                    COALESCE(cs.team_color, ds.driver_color, '#ff0000') as team_color, -- Team color from constructors_standings, fallback to driver color
+                    COALESCE(ds.driver_color, '#ff0000') as driver_color,
+                    COALESCE(cs.team_color, ds.driver_color, '#ff0000') as team_color,
                     COALESCE(ds.qualifying_position, ds.grid_position) as qualifying_position,
-                    ds.nationality -- Fetch nationality
+                    ds.nationality,
+                    ds.sprint_position,
+                    ds.sprint_points
                 FROM driver_standings ds
                 LEFT JOIN constructors_standings cs
-                    ON ds.year = cs.year AND ds.round = cs.round AND ds.team = cs.team
-                WHERE ds.year = ? AND ds.round = ?
+                    ON ds.year = cs.year 
+                    AND ds.round = cs.round 
+                    AND ds.team = cs.team
+                    AND ds.is_sprint = cs.is_sprint
+                WHERE ds.year = ? 
+                    AND ds.round = ? 
+                    AND ds.is_sprint = ?
                 ORDER BY ds.position
-            """, (year, round))
+            """, (year, round, is_sprint))
 
             results = []
             for row in cursor.fetchall():
                 position = row[0]
                 status = row[5]
                 qualifying_pos = row[11]
-                nationality = row[12] # Get nationality from query result
+                nationality = row[12]
+                sprint_position = row[13]
+                sprint_points = row[14]
 
                 # Transform status
-                if status == 'Finished':
-                    status_display = '🏁'
-                else:
-                    status_display = status # Keep other statuses as is
+                status_display = '🏁' if status == 'Finished' else status
 
                 # Calculate positions gained
                 positions_gained = qualifying_pos - position if qualifying_pos is not None and position is not None else 0
 
-                # Format fastest lap time if available (existing logic)
+                # Format fastest lap time
                 fastest_lap = row[8]
                 if fastest_lap and fastest_lap != 'N/A':
                     try:
@@ -1253,9 +1250,8 @@ async def get_race_results(year: int, round: int):
                             fastest_lap = f"{minutes}:{remaining_seconds:06.3f}"
                     except: pass
 
-                # Ensure pit_stops is a valid number (existing logic)
-                pit_stops = row[7]
-                if pit_stops is None or pit_stops == 0: pit_stops = 2
+                # Ensure pit_stops is a valid number
+                pit_stops = row[7] if row[7] is not None else 2
 
                 results.append({
                     'position': position,
@@ -1263,7 +1259,7 @@ async def get_race_results(year: int, round: int):
                     'team': row[2],
                     'points': row[3],
                     'laps': row[4],
-                    'status': status_display, # Use transformed status
+                    'status': status_display,
                     'grid': row[6],
                     'pit_stops': pit_stops,
                     'fastest_lap': fastest_lap,
@@ -1271,15 +1267,18 @@ async def get_race_results(year: int, round: int):
                     'team_color': standardize_team_color(row[10]),
                     'positions_gained': positions_gained,
                     'qualifying_position': qualifying_pos,
-                    'nationality': nationality, # Include original nationality
-                    'nationality_flag': NATIONALITY_FLAGS.get(nationality, '🏳️') # Add flag
+                    'nationality': nationality,
+                    'nationality_flag': NATIONALITY_FLAGS.get(nationality, '🏳️'),
+                    'sprint_position': sprint_position,
+                    'sprint_points': sprint_points
                 })
 
             conn.close()
             return {
-                'race_name': race_info[0],
+                'race_name': f"Sprint - {race_info[0]}" if is_sprint else race_info[0],
                 'date': race_info[1],
                 'country': race_info[2],
+                'is_sprint': is_sprint,
                 'results': results
             }
         else:
@@ -2296,6 +2295,70 @@ async def fix_antonelli_data():
     except Exception as e:
         logger.error(f"Error fixing Antonelli data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+def create_tables():
+    """Create the database tables if they don't exist."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Create race_schedule table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS race_schedule (
+                year INTEGER,
+                round INTEGER,
+                name TEXT,
+                date TEXT,
+                country TEXT,
+                is_sprint BOOLEAN DEFAULT 0,
+                PRIMARY KEY (year, round)
+            )
+        """)
+        
+        # Create driver_standings table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS driver_standings (
+                year INTEGER,
+                round INTEGER,
+                driver_name TEXT,
+                team TEXT,
+                points INTEGER,
+                total_points INTEGER,
+                position INTEGER,
+                fastest_lap_time TEXT,
+                qualifying_position INTEGER,
+                positions_gained INTEGER,
+                pit_stops INTEGER,
+                driver_number INTEGER,
+                driver_color TEXT,
+                nationality TEXT,
+                is_sprint BOOLEAN DEFAULT 0,
+                sprint_points INTEGER DEFAULT 0,
+                sprint_position INTEGER,
+                PRIMARY KEY (year, round, driver_name)
+            )
+        """)
+        
+        # Create constructors_standings table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS constructors_standings (
+                year INTEGER,
+                round INTEGER,
+                team TEXT,
+                points INTEGER,
+                total_points INTEGER,
+                position INTEGER,
+                wins INTEGER,
+                podiums INTEGER,
+                fastest_laps INTEGER,
+                team_color TEXT,
+                is_sprint BOOLEAN DEFAULT 0,
+                sprint_points INTEGER DEFAULT 0,
+                sprint_position INTEGER,
+                PRIMARY KEY (year, round, team)
+            )
+        """)
+        
+        conn.commit()
 
 if __name__ == "__main__":
     import uvicorn
