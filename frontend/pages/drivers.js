@@ -59,23 +59,62 @@ export default function Drivers() {
   }, []);
 
   useEffect(() => {
-    const fetchDrivers = async () => {
+    const fetchDriverData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_URL}/drivers/${currentYear}`);
-        if (!response.ok) throw new Error('Failed to fetch driver data');
-        const data = await response.json();
-        setDrivers(data);
+        // Fetch both drivers and standings data
+        const [driversResponse, standingsResponse] = await Promise.all([
+          fetch(`${API_URL}/drivers/${currentYear}`),
+          fetch(`${API_URL}/standings/${currentYear}`)
+        ]);
+        
+        if (!driversResponse.ok) throw new Error('Failed to fetch driver data');
+        if (!standingsResponse.ok) throw new Error('Failed to fetch standings data');
+        
+        const driversData = await driversResponse.json();
+        const standingsData = await standingsResponse.json();
+        
+        // Create a map of driver standings for easy lookup
+        const standingsMap = {};
+        standingsData.forEach(standing => {
+          standingsMap[standing.driver_name] = standing;
+        });
+        
+        // Merge drivers data with standings data
+        const mergedDrivers = driversData.map(driver => {
+          const standing = standingsMap[driver.driver_name] || {};
+          return {
+            ...driver,
+            total_points: standing.total_points || 0,
+            position: standing.position || null,
+            races_participated: standing.races_participated || 0
+          };
+        });
+        
+        // Sort drivers by position in standings
+        mergedDrivers.sort((a, b) => {
+          // If both have positions, sort by position
+          if (a.position !== null && b.position !== null) {
+            return a.position - b.position;
+          }
+          // If only one has a position, put the one with position first
+          if (a.position !== null) return -1;
+          if (b.position !== null) return 1;
+          // If neither has a position, sort by name
+          return a.driver_name.localeCompare(b.driver_name);
+        });
+        
+        setDrivers(mergedDrivers);
       } catch (err) {
-        console.error('Error fetching drivers:', err);
+        console.error('Error fetching driver data:', err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDrivers();
+    fetchDriverData();
   }, [currentYear]);
 
   // Function to format driver name with last name in uppercase
@@ -133,7 +172,7 @@ export default function Drivers() {
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {drivers.map((driver, index) => (
               <motion.div
-                key={driver.driver_number}
+                key={driver.driver_number || index}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
@@ -174,6 +213,22 @@ export default function Drivers() {
                       </span>
                     </div>
                   )}
+                  
+                  {/* Position badge in the top left */}
+                  {driver.position && (
+                    <div className="absolute top-4 left-4">
+                      <div 
+                        className="w-8 h-8 rounded-full flex items-center justify-center"
+                        style={{ 
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          border: '1px solid rgba(255, 255, 255, 0.5)',
+                          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+                        }}
+                      >
+                        <span className="text-white font-bold text-sm">{driver.position}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="p-6 bg-gray-900/80 backdrop-blur-sm">
@@ -202,11 +257,11 @@ export default function Drivers() {
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
                       <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Points</p>
-                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.total_points}</p>
+                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.total_points || 0}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Position</p>
-                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.position}</p>
+                      <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Races</p>
+                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.races_participated || 0}</p>
                     </div>
                   </div>
                 </div>
