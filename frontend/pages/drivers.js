@@ -174,6 +174,16 @@ export default function Drivers() {
     return `/images/drivers/${formattedName}.png`;
   };
 
+  // StatCard component for displaying statistics
+  const StatCard = ({ label, value }) => {
+    return (
+      <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+        <p className="text-gray-400 text-xs sm:text-sm">{label}</p>
+        <p className="text-white text-xl sm:text-2xl font-bold">{value}</p>
+      </div>
+    );
+  };
+
   // Update the driver card to be clickable with enhanced hover animations
   const DriverCard = ({ driver }) => {
     return (
@@ -222,172 +232,136 @@ export default function Drivers() {
   };
 
   // Update the modal component to include tabs
-  const DriverStatsModal = ({ isOpen, onClose, driver, stats, isLoading }) => {
+  const DriverStatsModal = ({ driver, stats, onClose }) => {
     const [activeTab, setActiveTab] = useState('race');
     
-    if (!isOpen) return null;
-
+    if (!driver || !stats) return null;
+  
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75">
         <div 
-          className="bg-gray-900 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto"
-          style={{
-            borderLeft: `4px solid ${driver?.driver_color || '#ffffff'}`,
-            borderTop: `4px solid ${driver?.driver_color || '#ffffff'}`,
+          className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative"
+          style={{ 
+            borderLeft: `2px solid ${driver.driver_color}`,
+            borderTop: `2px solid ${driver.driver_color}`,
+            borderRadius: '1rem'
           }}
         >
-          <div className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
-              <div className="flex items-center gap-4 w-full sm:w-auto">
-                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden flex-shrink-0">
-                  <Image
-                    src={getDriverImagePath(driver?.driver_name)}
-                    alt={driver?.driver_name}
-                    width={96}
-                    height={96}
-                    className="object-cover"
-                    onError={(e) => {
-                      e.target.src = '/images/drivers/default.png';
-                    }}
-                  />
-                </div>
-                <div className="flex-grow">
-                  <h2 
-                    className="text-xl sm:text-2xl font-bold"
-                    style={{ 
-                      color: driver?.driver_color || '#ffffff',
-                      fontFamily: 'Audiowide, sans-serif'
-                    }}
-                  >
-                    {formatDriverName(driver?.driver_name)}
-                  </h2>
-                  <p className="text-gray-400 text-sm sm:text-base">{driver?.team}</p>
-                  {driver?.position && (
-                    <p className="text-white mt-1 text-sm sm:text-base">Championship Position: {driver.position}</p>
-                  )}
-                </div>
-              </div>
-              <button 
-                onClick={onClose}
-                className="text-gray-400 hover:text-white absolute top-4 right-4 sm:relative sm:top-0 sm:right-0"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+          {/* Close button */}
+          <button 
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          
+          {/* Header */}
+          <div className="p-6 border-b border-gray-800 flex flex-col md:flex-row items-center md:items-start gap-4">
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
+              <Image
+                src={getDriverImagePath(driver.driver_name)}
+                alt={driver.driver_name}
+                width={96}
+                height={96}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = '/images/drivers/default.png';
+                }}
+              />
             </div>
-
-            {isLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
-              </div>
-            ) : stats ? (
-              <div>
-                {/* Tabs */}
-                <div className="flex border-b border-gray-700 mb-4">
-                  <button
-                    className={`py-2 px-4 text-sm font-medium ${
-                      activeTab === 'race'
-                        ? 'text-white border-b-2'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
-                    style={{
-                      borderColor: activeTab === 'race' ? driver?.driver_color || '#ffffff' : 'transparent'
-                    }}
-                    onClick={() => setActiveTab('race')}
-                  >
-                    Race Performance
-                  </button>
-                  <button
-                    className={`py-2 px-4 text-sm font-medium ${
-                      activeTab === 'qualifying'
-                        ? 'text-white border-b-2'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
-                    style={{
-                      borderColor: activeTab === 'qualifying' ? driver?.driver_color || '#ffffff' : 'transparent'
-                    }}
-                    onClick={() => setActiveTab('qualifying')}
-                  >
-                    Qualifying Performance
-                  </button>
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="text-2xl font-bold text-white" style={{ color: driver.driver_color }}>{formatDriverName(driver.driver_name)}</h2>
+              <p className="text-gray-400">{driver.team}</p>
+              <p className="text-gray-500">Championship Position: {driver.position || 'N/A'}</p>
+            </div>
+          </div>
+          
+          {/* Tabs */}
+          <div className="border-b border-gray-800">
+            <div className="flex overflow-x-auto">
+              <button
+                className={`px-6 py-3 text-sm font-medium ${
+                  activeTab === 'race' 
+                    ? 'text-white border-b-2' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                style={{ 
+                  borderColor: activeTab === 'race' ? driver.driver_color : 'transparent'
+                }}
+                onClick={() => setActiveTab('race')}
+              >
+                Race Performance
+              </button>
+              <button
+                className={`px-6 py-3 text-sm font-medium ${
+                  activeTab === 'qualifying' 
+                    ? 'text-white border-b-2' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                style={{ 
+                  borderColor: activeTab === 'qualifying' ? driver.driver_color : 'transparent'
+                }}
+                onClick={() => setActiveTab('qualifying')}
+              >
+                Qualifying Performance
+              </button>
+              {/* Add more tabs here for future enhancements */}
+            </div>
+          </div>
+          
+          {/* Tab Content */}
+          <div className="p-6">
+            {activeTab === 'race' && (
+              <div className="space-y-6">
+                {/* Race Results */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Race Results</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <StatCard label="Wins" value={stats.wins} />
+                    <StatCard label="Podiums" value={stats.podiums} />
+                    <StatCard label="Points" value={driver.total_points || 0} />
+                    <StatCard label="Races" value={stats.total_races} />
+                  </div>
                 </div>
-
-                {/* Race Performance Tab */}
-                {activeTab === 'race' && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Wins</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.wins}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Podiums</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.podiums}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Pole Positions</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.pole_positions}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Fastest Laps</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.fastest_laps}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Laps Led</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.laps_led}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Lead Lap %</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.lead_lap_percentage}%</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Avg Race Position</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.average_race_position}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Positions Gained</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.positions_gained}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Avg Positions Gained</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.average_positions_gained}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Total Races</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.total_races}</p>
-                    </div>
+                
+                {/* Race Performance */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Race Performance</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <StatCard label="Fastest Laps" value={stats.fastest_laps} />
+                    <StatCard label="Laps Led" value={stats.laps_led} />
+                    <StatCard label="Lead Lap %" value={`${stats.lead_lap_percentage}%`} />
+                    <StatCard label="Avg. Position" value={stats.average_race_position} />
                   </div>
-                )}
-
-                {/* Qualifying Performance Tab */}
-                {activeTab === 'qualifying' && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Avg Qualifying Position</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.average_grid_position || 'N/A'}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Q3 Appearances</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.q3_appearances || 'N/A'}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Q2 Appearances</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.q2_appearances || 'N/A'}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Q1 Eliminations</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.q1_eliminations || 'N/A'}</p>
-                    </div>
-                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
-                      <p className="text-gray-400 text-xs sm:text-sm">Quali vs Race Position</p>
-                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.quali_vs_race_position || 'N/A'}</p>
-                    </div>
+                </div>
+                
+                {/* Overtaking */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Overtaking</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <StatCard label="Positions Gained" value={stats.positions_gained} />
+                    <StatCard label="Avg. Positions Gained" value={stats.average_positions_gained} />
                   </div>
-                )}
+                </div>
               </div>
-            ) : (
-              <div className="text-center text-gray-400 py-8">
-                <p>No statistics available for this driver.</p>
+            )}
+            
+            {activeTab === 'qualifying' && (
+              <div className="space-y-6">
+                {/* Qualifying Performance */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Qualifying Performance</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <StatCard label="Pole Positions" value={stats.pole_positions} />
+                    <StatCard label="Avg. Qualifying" value={stats.average_qualifying_position} />
+                    <StatCard label="Q3 Appearances" value={stats.q3_appearances} />
+                    <StatCard label="Q2 Appearances" value={stats.q2_appearances} />
+                    <StatCard label="Q1 Eliminations" value={stats.q1_eliminations} />
+                    <StatCard label="Qual vs Race Diff" value={stats.qualifying_vs_race_diff} />
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -531,11 +505,9 @@ export default function Drivers() {
       {/* Driver Stats Modal */}
       {isModalOpen && (
         <DriverStatsModal
-          isOpen={isModalOpen}
-          onClose={closeModal}
           driver={selectedDriver}
           stats={driverStats}
-          isLoading={loadingStats}
+          onClose={closeModal}
         />
       )}
     </Layout>
