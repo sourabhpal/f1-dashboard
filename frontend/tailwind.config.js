@@ -5,7 +5,12 @@ module.exports = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        // Add Goldman font, ensuring sans-serif is a fallback
+        goldman: ['Goldman', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 } 
