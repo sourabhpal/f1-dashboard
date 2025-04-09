@@ -41,6 +41,10 @@ export default function Drivers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [availableYears, setAvailableYears] = useState([2025, 2024, 2023, 2022]);
+  const [selectedDriver, setSelectedDriver] = useState(null);
+  const [driverStats, setDriverStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchAvailableYears = async () => {
@@ -59,24 +63,95 @@ export default function Drivers() {
   }, []);
 
   useEffect(() => {
-    const fetchDrivers = async () => {
+    const fetchDriverData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_URL}/drivers/${currentYear}`);
-        if (!response.ok) throw new Error('Failed to fetch driver data');
-        const data = await response.json();
-        setDrivers(data);
+        // Fetch both drivers and standings data
+        const [driversResponse, standingsResponse] = await Promise.all([
+          fetch(`${API_URL}/drivers/${currentYear}`),
+          fetch(`${API_URL}/standings/${currentYear}`)
+        ]);
+        
+        if (!driversResponse.ok) throw new Error('Failed to fetch driver data');
+        if (!standingsResponse.ok) throw new Error('Failed to fetch standings data');
+        
+        const driversData = await driversResponse.json();
+        const standingsData = await standingsResponse.json();
+        
+        // Create a map of driver standings for easy lookup
+        const standingsMap = {};
+        standingsData.forEach(standing => {
+          standingsMap[standing.driver_name] = standing;
+        });
+        
+        // Merge drivers data with standings data
+        const mergedDrivers = driversData.map(driver => {
+          const standing = standingsMap[driver.driver_name] || {};
+          return {
+            ...driver,
+            total_points: standing.total_points || 0,
+            position: standing.position || null,
+            races_participated: standing.races_participated || 0
+          };
+        });
+        
+        // Sort drivers by position in standings
+        mergedDrivers.sort((a, b) => {
+          // If both have positions, sort by position
+          if (a.position !== null && b.position !== null) {
+            return a.position - b.position;
+          }
+          // If only one has a position, put the one with position first
+          if (a.position !== null) return -1;
+          if (b.position !== null) return 1;
+          // If neither has a position, sort by name
+          return a.driver_name.localeCompare(b.driver_name);
+        });
+        
+        setDrivers(mergedDrivers);
       } catch (err) {
-        console.error('Error fetching drivers:', err);
+        console.error('Error fetching driver data:', err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDrivers();
+    fetchDriverData();
   }, [currentYear]);
+
+  // Function to fetch driver statistics
+  const fetchDriverStats = async (driverName) => {
+    try {
+      setLoadingStats(true);
+      const response = await fetch(`${API_URL}/driver-stats/${currentYear}/${encodeURIComponent(driverName)}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setDriverStats(data);
+    } catch (error) {
+      console.error('Error fetching driver stats:', error);
+      // You might want to show an error message to the user here
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  // Function to handle driver tile click
+  const handleDriverClick = (driver) => {
+    setSelectedDriver(driver);
+    setIsModalOpen(true);
+    fetchDriverStats(driver.driver_name);
+  };
+
+  // Function to close the modal
+  const closeModal = () => {
+    setSelectedDriver(null);
+    setDriverStats(null);
+    setIsModalOpen(false);
+  };
 
   // Function to format driver name with last name in uppercase
   const formatDriverName = (fullName) => {
@@ -97,6 +172,202 @@ export default function Drivers() {
     // Convert driver name to lowercase and replace spaces with hyphens
     const formattedName = driverName.toLowerCase().replace(/\s+/g, '-');
     return `/images/drivers/${formattedName}.png`;
+  };
+
+  // StatCard component for displaying statistics
+  const StatCard = ({ label, value }) => {
+    return (
+      <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+        <p className="text-gray-400 text-xs sm:text-sm">{label}</p>
+        <p className="text-white text-xl sm:text-2xl font-bold">{value}</p>
+      </div>
+    );
+  };
+
+  // Update the driver card to be clickable with enhanced hover animations
+  const DriverCard = ({ driver }) => {
+    return (
+      <motion.div
+        className="bg-white rounded-lg shadow-md p-4 cursor-pointer relative overflow-hidden"
+        onClick={() => handleDriverClick(driver)}
+        whileHover={{ 
+          scale: 1.02,
+          transition: { duration: 0.2 }
+        }}
+        whileTap={{ scale: 0.98 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <motion.div 
+          className="absolute inset-0 opacity-0"
+          style={{ 
+            background: `linear-gradient(45deg, ${driver.driver_color}33, transparent)`,
+          }}
+          whileHover={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
+        />
+        <div className="flex items-center justify-between mb-2 relative z-10">
+          <div className="flex items-center">
+            <div
+              className="w-8 h-8 rounded-full mr-2"
+              style={{ backgroundColor: driver.driver_color }}
+            ></div>
+            <div>
+              <h3 className="font-semibold">{driver.driver_name}</h3>
+              <p className="text-sm text-gray-500">{driver.team}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-sm font-medium text-gray-900">P{driver.position || '-'}</div>
+            <div className="text-sm text-gray-500">{driver.total_points || 0} pts</div>
+          </div>
+        </div>
+        <div className="flex justify-between text-sm text-gray-500 relative z-10">
+          <div>#{driver.driver_number || '-'}</div>
+          <div>{driver.races_participated || 0} races</div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Update the modal component to include tabs
+  const DriverStatsModal = ({ driver, stats, onClose }) => {
+    const [activeTab, setActiveTab] = useState('race');
+    
+    if (!driver || !stats) return null;
+  
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75">
+        <div 
+          className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative"
+          style={{ 
+            borderLeft: `2px solid ${driver.driver_color}`,
+            borderTop: `2px solid ${driver.driver_color}`,
+            borderRadius: '1rem'
+          }}
+        >
+          {/* Close button */}
+          <button 
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          
+          {/* Header */}
+          <div className="p-6 border-b border-gray-800 flex flex-col md:flex-row items-center md:items-start gap-4">
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
+              <Image
+                src={getDriverImagePath(driver.driver_name)}
+                alt={driver.driver_name}
+                width={96}
+                height={96}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = '/images/drivers/default.png';
+                }}
+              />
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="text-2xl font-bold text-white" style={{ color: driver.driver_color }}>{formatDriverName(driver.driver_name)}</h2>
+              <p className="text-gray-400">{driver.team}</p>
+              <p className="text-gray-500">Championship Position: {driver.position || 'N/A'}</p>
+            </div>
+          </div>
+          
+          {/* Tabs */}
+          <div className="border-b border-gray-800">
+            <div className="flex overflow-x-auto">
+              <button
+                className={`px-6 py-3 text-sm font-medium ${
+                  activeTab === 'race' 
+                    ? 'text-white border-b-2' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                style={{ 
+                  borderColor: activeTab === 'race' ? driver.driver_color : 'transparent'
+                }}
+                onClick={() => setActiveTab('race')}
+              >
+                Race Performance
+              </button>
+              <button
+                className={`px-6 py-3 text-sm font-medium ${
+                  activeTab === 'qualifying' 
+                    ? 'text-white border-b-2' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                style={{ 
+                  borderColor: activeTab === 'qualifying' ? driver.driver_color : 'transparent'
+                }}
+                onClick={() => setActiveTab('qualifying')}
+              >
+                Qualifying Performance
+              </button>
+              {/* Add more tabs here for future enhancements */}
+            </div>
+          </div>
+          
+          {/* Tab Content */}
+          <div className="p-6">
+            {activeTab === 'race' && (
+              <div className="space-y-6">
+                {/* Race Results */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Race Results</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <StatCard label="Wins" value={stats.wins} />
+                    <StatCard label="Podiums" value={stats.podiums} />
+                    <StatCard label="Points" value={driver.total_points || 0} />
+                    <StatCard label="Races" value={stats.total_races} />
+                  </div>
+                </div>
+                
+                {/* Race Performance */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Race Performance</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <StatCard label="Fastest Laps" value={stats.fastest_laps} />
+                    <StatCard label="Laps Led" value={stats.laps_led} />
+                    <StatCard label="Lead Lap %" value={`${stats.lead_lap_percentage}%`} />
+                    <StatCard label="Avg. Position" value={stats.average_race_position} />
+                  </div>
+                </div>
+                
+                {/* Overtaking */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Overtaking</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <StatCard label="Positions Gained" value={stats.positions_gained} />
+                    <StatCard label="Avg. Positions Gained" value={stats.average_positions_gained} />
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {activeTab === 'qualifying' && (
+              <div className="space-y-6">
+                {/* Qualifying Performance */}
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3">Qualifying Performance</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <StatCard label="Pole Positions" value={stats.pole_positions} />
+                    <StatCard label="Avg. Qualifying" value={stats.average_qualifying_position} />
+                    <StatCard label="Q3 Appearances" value={stats.q3_appearances} />
+                    <StatCard label="Q2 Appearances" value={stats.q2_appearances} />
+                    <StatCard label="Q1 Eliminations" value={stats.q1_eliminations} />
+                    <StatCard label="Qual vs Race Diff" value={stats.qualifying_vs_race_diff} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -133,16 +404,17 @@ export default function Drivers() {
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {drivers.map((driver, index) => (
               <motion.div
-                key={driver.driver_number}
+                key={driver.driver_number || index}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="relative overflow-hidden rounded-lg shadow-lg"
+                className="relative overflow-hidden rounded-lg shadow-lg cursor-pointer hover:shadow-xl transition-shadow duration-300"
                 style={{
                   borderLeft: `2px solid ${driver.driver_color || '#ffffff'}`,
                   borderTop: `2px solid ${driver.driver_color || '#ffffff'}`,
                   borderRadius: '1rem'
                 }}
+                onClick={() => handleDriverClick(driver)}
               >
                 <div className="relative h-96">
                   {/* Driver image */}
@@ -174,6 +446,20 @@ export default function Drivers() {
                       </span>
                     </div>
                   )}
+                  
+                  {/* Position badge in the top left */}
+                  {driver.position && (
+                    <div className="absolute top-4 left-4">
+                      <span 
+                        className="text-white font-bold text-sm"
+                        style={{ 
+                          textShadow: '0 1px 2px rgba(0, 0, 0, 0.8)'
+                        }}
+                      >
+                        P{driver.position}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="p-6 bg-gray-900/80 backdrop-blur-sm">
@@ -202,11 +488,11 @@ export default function Drivers() {
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
                       <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Points</p>
-                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.total_points}</p>
+                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.total_points || 0}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Position</p>
-                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.position}</p>
+                      <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Races</p>
+                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.races_participated || 0}</p>
                     </div>
                   </div>
                 </div>
@@ -215,6 +501,15 @@ export default function Drivers() {
           </div>
         )}
       </div>
+
+      {/* Driver Stats Modal */}
+      {isModalOpen && (
+        <DriverStatsModal
+          driver={selectedDriver}
+          stats={driverStats}
+          onClose={closeModal}
+        />
+      )}
     </Layout>
   );
 } 
