@@ -44,6 +44,7 @@ export default function Drivers() {
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [driverStats, setDriverStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchAvailableYears = async () => {
@@ -122,31 +123,17 @@ export default function Drivers() {
 
   // Function to fetch driver statistics
   const fetchDriverStats = async (driverName) => {
-    setLoadingStats(true);
     try {
-      // In a real implementation, you would fetch this data from your API
-      // For now, we'll simulate the data
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Generate random statistics for demonstration
-      const stats = {
-        wins: Math.floor(Math.random() * 5),
-        podiums: Math.floor(Math.random() * 10) + 5,
-        polePositions: Math.floor(Math.random() * 5),
-        fastestLaps: Math.floor(Math.random() * 3),
-        lapsLed: Math.floor(Math.random() * 200) + 50,
-        leadLapPercentage: (Math.random() * 15).toFixed(1),
-        averageRacePosition: (Math.random() * 10 + 5).toFixed(1),
-        averageGridPosition: (Math.random() * 10 + 5).toFixed(1),
-        positionsGained: Math.floor(Math.random() * 50) + 10,
-        averagePositionsGained: (Math.random() * 3).toFixed(1)
-      };
-      
-      setDriverStats(stats);
-    } catch (err) {
-      console.error('Error fetching driver stats:', err);
+      setLoadingStats(true);
+      const response = await fetch(`${API_URL}/driver-stats/${currentYear}/${encodeURIComponent(driverName)}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setDriverStats(data);
+    } catch (error) {
+      console.error('Error fetching driver stats:', error);
+      // You might want to show an error message to the user here
     } finally {
       setLoadingStats(false);
     }
@@ -155,6 +142,7 @@ export default function Drivers() {
   // Function to handle driver tile click
   const handleDriverClick = (driver) => {
     setSelectedDriver(driver);
+    setIsModalOpen(true);
     fetchDriverStats(driver.driver_name);
   };
 
@@ -162,6 +150,7 @@ export default function Drivers() {
   const closeModal = () => {
     setSelectedDriver(null);
     setDriverStats(null);
+    setIsModalOpen(false);
   };
 
   // Function to format driver name with last name in uppercase
@@ -183,6 +172,228 @@ export default function Drivers() {
     // Convert driver name to lowercase and replace spaces with hyphens
     const formattedName = driverName.toLowerCase().replace(/\s+/g, '-');
     return `/images/drivers/${formattedName}.png`;
+  };
+
+  // Update the driver card to be clickable with enhanced hover animations
+  const DriverCard = ({ driver }) => {
+    return (
+      <motion.div
+        className="bg-white rounded-lg shadow-md p-4 cursor-pointer relative overflow-hidden"
+        onClick={() => handleDriverClick(driver)}
+        whileHover={{ 
+          scale: 1.02,
+          transition: { duration: 0.2 }
+        }}
+        whileTap={{ scale: 0.98 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <motion.div 
+          className="absolute inset-0 opacity-0"
+          style={{ 
+            background: `linear-gradient(45deg, ${driver.driver_color}33, transparent)`,
+          }}
+          whileHover={{ opacity: 1 }}
+          transition={{ duration: 0.2 }}
+        />
+        <div className="flex items-center justify-between mb-2 relative z-10">
+          <div className="flex items-center">
+            <div
+              className="w-8 h-8 rounded-full mr-2"
+              style={{ backgroundColor: driver.driver_color }}
+            ></div>
+            <div>
+              <h3 className="font-semibold">{driver.driver_name}</h3>
+              <p className="text-sm text-gray-500">{driver.team}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-sm font-medium text-gray-900">P{driver.position || '-'}</div>
+            <div className="text-sm text-gray-500">{driver.total_points || 0} pts</div>
+          </div>
+        </div>
+        <div className="flex justify-between text-sm text-gray-500 relative z-10">
+          <div>#{driver.driver_number || '-'}</div>
+          <div>{driver.races_participated || 0} races</div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Update the modal component to include tabs
+  const DriverStatsModal = ({ isOpen, onClose, driver, stats, isLoading }) => {
+    const [activeTab, setActiveTab] = useState('race');
+    
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+        <div 
+          className="bg-gray-900 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+          style={{
+            borderLeft: `4px solid ${driver?.driver_color || '#ffffff'}`,
+            borderTop: `4px solid ${driver?.driver_color || '#ffffff'}`,
+          }}
+        >
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
+              <div className="flex items-center gap-4 w-full sm:w-auto">
+                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden flex-shrink-0">
+                  <Image
+                    src={getDriverImagePath(driver?.driver_name)}
+                    alt={driver?.driver_name}
+                    width={96}
+                    height={96}
+                    className="object-cover"
+                    onError={(e) => {
+                      e.target.src = '/images/drivers/default.png';
+                    }}
+                  />
+                </div>
+                <div className="flex-grow">
+                  <h2 
+                    className="text-xl sm:text-2xl font-bold"
+                    style={{ 
+                      color: driver?.driver_color || '#ffffff',
+                      fontFamily: 'Audiowide, sans-serif'
+                    }}
+                  >
+                    {formatDriverName(driver?.driver_name)}
+                  </h2>
+                  <p className="text-gray-400 text-sm sm:text-base">{driver?.team}</p>
+                  {driver?.position && (
+                    <p className="text-white mt-1 text-sm sm:text-base">Championship Position: {driver.position}</p>
+                  )}
+                </div>
+              </div>
+              <button 
+                onClick={onClose}
+                className="text-gray-400 hover:text-white absolute top-4 right-4 sm:relative sm:top-0 sm:right-0"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
+              </div>
+            ) : stats ? (
+              <div>
+                {/* Tabs */}
+                <div className="flex border-b border-gray-700 mb-4">
+                  <button
+                    className={`py-2 px-4 text-sm font-medium ${
+                      activeTab === 'race'
+                        ? 'text-white border-b-2'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                    style={{
+                      borderColor: activeTab === 'race' ? driver?.driver_color || '#ffffff' : 'transparent'
+                    }}
+                    onClick={() => setActiveTab('race')}
+                  >
+                    Race Performance
+                  </button>
+                  <button
+                    className={`py-2 px-4 text-sm font-medium ${
+                      activeTab === 'qualifying'
+                        ? 'text-white border-b-2'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                    style={{
+                      borderColor: activeTab === 'qualifying' ? driver?.driver_color || '#ffffff' : 'transparent'
+                    }}
+                    onClick={() => setActiveTab('qualifying')}
+                  >
+                    Qualifying Performance
+                  </button>
+                </div>
+
+                {/* Race Performance Tab */}
+                {activeTab === 'race' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Wins</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.wins}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Podiums</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.podiums}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Pole Positions</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.pole_positions}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Fastest Laps</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.fastest_laps}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Laps Led</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.laps_led}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Lead Lap %</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.lead_lap_percentage}%</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Avg Race Position</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.average_race_position}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Positions Gained</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.positions_gained}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Avg Positions Gained</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.average_positions_gained}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Total Races</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.total_races}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Qualifying Performance Tab */}
+                {activeTab === 'qualifying' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Avg Qualifying Position</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.average_grid_position || 'N/A'}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Q3 Appearances</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.q3_appearances || 'N/A'}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Q2 Appearances</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.q2_appearances || 'N/A'}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Q1 Eliminations</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.q1_eliminations || 'N/A'}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 sm:p-4 rounded-lg">
+                      <p className="text-gray-400 text-xs sm:text-sm">Quali vs Race Position</p>
+                      <p className="text-white text-xl sm:text-2xl font-bold">{stats.quali_vs_race_position || 'N/A'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center text-gray-400 py-8">
+                <p>No statistics available for this driver.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -318,114 +529,14 @@ export default function Drivers() {
       </div>
 
       {/* Driver Stats Modal */}
-      {selectedDriver && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div 
-            className="bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            style={{
-              borderLeft: `4px solid ${selectedDriver.driver_color || '#ffffff'}`,
-              borderTop: `4px solid ${selectedDriver.driver_color || '#ffffff'}`,
-            }}
-          >
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex items-center gap-4">
-                  <div className="relative w-24 h-24 rounded-full overflow-hidden">
-                    <Image
-                      src={getDriverImagePath(selectedDriver.driver_name)}
-                      alt={selectedDriver.driver_name}
-                      width={96}
-                      height={96}
-                      className="object-cover"
-                      onError={(e) => {
-                        e.target.src = '/images/drivers/default.png';
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <h2 
-                      className="text-2xl font-bold"
-                      style={{ 
-                        color: selectedDriver.driver_color || '#ffffff',
-                        fontFamily: 'Audiowide, sans-serif'
-                      }}
-                    >
-                      {formatDriverName(selectedDriver.driver_name)}
-                    </h2>
-                    <p className="text-gray-400">{selectedDriver.team}</p>
-                    {selectedDriver.position && (
-                      <p className="text-white mt-1">Championship Position: {selectedDriver.position}</p>
-                    )}
-                  </div>
-                </div>
-                <button 
-                  onClick={closeModal}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {loadingStats ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
-                </div>
-              ) : driverStats ? (
-                <div>
-                  <h3 className="text-xl font-bold mb-4 text-white">Race Performance</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Wins</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.wins}</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Podiums</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.podiums}</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Pole Positions</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.polePositions}</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Fastest Laps</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.fastestLaps}</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Laps Led</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.lapsLed}</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Lead Lap Percentage</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.leadLapPercentage}%</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Average Race Position</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.averageRacePosition}</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Average Grid Position</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.averageGridPosition}</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Positions Gained</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.positionsGained}</p>
-                    </div>
-                    <div className="bg-gray-800 p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm">Average Positions Gained</p>
-                      <p className="text-white text-2xl font-bold">{driverStats.averagePositionsGained}</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center text-gray-400 py-8">
-                  <p>No statistics available for this driver.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      {isModalOpen && (
+        <DriverStatsModal
+          isOpen={isModalOpen}
+          onClose={closeModal}
+          driver={selectedDriver}
+          stats={driverStats}
+          isLoading={loadingStats}
+        />
       )}
     </Layout>
   );
