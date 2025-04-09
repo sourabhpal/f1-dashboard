@@ -38,6 +38,38 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'f1_data.db')
 # Global lock for database access
 db_lock = threading.Lock()
 
+# Nationality to Flag Emoji Mapping
+NATIONALITY_FLAGS = {
+    'British': '🇬🇧',
+    'German': '🇩🇪',
+    'Dutch': '🇳🇱',
+    'Monegasque': '🇲🇨', # Monaco
+    'Spanish': '🇪🇸',
+    'Finnish': '🇫🇮',
+    'French': '🇫🇷',
+    'Australian': '🇦🇺',
+    'Canadian': '🇨🇦',
+    'Mexican': '🇲🇽',
+    'Japanese': '🇯🇵',
+    'Thai': '🇹🇭',
+    'Chinese': '🇨🇳',
+    'Danish': '🇩🇰',
+    'Italian': '🇮🇹',
+    'American': '🇺🇸',
+    'Belgian': '🇧🇪',
+    'Brazilian': '🇧🇷',
+    'New Zealander': '🇳🇿',
+    'Austrian': '🇦🇹',
+    'Swiss': '🇨🇭',
+    'Saudi Arabian': '🇸🇦',
+    'Emirati': '🇦🇪', # UAE
+    'Russian': '🇷🇺',
+    'Polish': '🇵🇱',
+    # Add more as needed
+    'Unknown': '🏳️', # Default/Unknown
+    None: '🏳️'
+}
+
 def init_db():
     """Initialize the database with proper schema and settings."""
     with db_lock:
@@ -382,38 +414,38 @@ async def get_standings(year: int):
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
-            # Get the latest team information for each driver
+
+            # Get the latest team information for each driver, including nationality
             cursor.execute("""
                 WITH standardized_names AS (
-                    SELECT 
-                        CASE 
+                    SELECT
+                        CASE
                             WHEN driver_name LIKE '%Kimi Antonelli%' THEN 'Kimi Antonelli'
-                            ELSE driver_name 
+                            ELSE driver_name
                         END as driver_name,
                         team,
                         driver_number,
                         driver_color,
-                        nationality,
+                        nationality, -- Ensure nationality is selected
                         round,
                         points,
                         year
                     FROM driver_standings
                 ),
                 latest_team AS (
-                    SELECT 
+                    SELECT
                         driver_name,
                         team,
                         driver_number,
                         driver_color,
-                        nationality,
+                        nationality, -- Pass nationality through
                         MAX(round) as latest_round
                     FROM standardized_names
                     WHERE year = ?
                     GROUP BY driver_name
                 ),
                 cumulative_points AS (
-                    SELECT 
+                    SELECT
                         driver_name,
                         SUM(points) as total_points,
                         COUNT(DISTINCT round) as races_participated,
@@ -422,19 +454,19 @@ async def get_standings(year: int):
                     WHERE year = ?
                     GROUP BY driver_name
                 )
-                SELECT 
+                SELECT
                     lt.driver_name,
                     lt.team,
                     lt.driver_number,
-                    CASE 
+                    CASE
                         WHEN lt.driver_color NOT LIKE '#%' THEN '#' || lt.driver_color
                         ELSE lt.driver_color
                     END as driver_color,
-                    lt.nationality,
+                    lt.nationality, -- Select nationality
                     cp.total_points,
                     cp.races_participated,
                     DENSE_RANK() OVER (
-                        ORDER BY cp.total_points DESC, 
+                        ORDER BY cp.total_points DESC,
                         cp.races_participated DESC,
                         cp.latest_round DESC
                     ) as position
@@ -442,22 +474,27 @@ async def get_standings(year: int):
                 JOIN cumulative_points cp ON lt.driver_name = cp.driver_name
                 ORDER BY position, cp.total_points DESC, cp.races_participated DESC
             """, (year, year))
-            
+
             standings = []
             for row in cursor.fetchall():
+                nationality = row[4]
                 standings.append({
                     "driver_name": row[0],
                     "team": row[1],
                     "driver_number": row[2],
                     "driver_color": row[3],
-                    "nationality": row[4],
+                    "nationality": nationality,
+                    "nationality_flag": NATIONALITY_FLAGS.get(nationality, '🏳️'), # Add flag
                     "total_points": row[5],
                     "races_participated": row[6],
                     "position": row[7]
                 })
-            
+
             return standings
     except Exception as e:
+        logger.error(f"Error fetching standings for year {year}: {str(e)}") # Add logging
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/team_standings/{year}")
@@ -1016,9 +1053,9 @@ async def get_race_results(year: int, round: int):
     try:
         # For 2025 data, use the database
         if year == 2025:
-            conn = sqlite3.connect('f1_data.db')
+            conn = sqlite3.connect(DB_PATH) # Use DB_PATH constant
             cursor = conn.cursor()
-            
+
             # Get race info
             cursor.execute("""
                 SELECT name, date, country
@@ -1026,66 +1063,83 @@ async def get_race_results(year: int, round: int):
                 WHERE year = ? AND round = ?
             """, (year, round))
             race_info = cursor.fetchone()
-            
+
             if not race_info:
                 raise HTTPException(status_code=404, detail="Race not found")
-            
-            # Get driver standings with all necessary fields
+
+            # Get driver standings with all necessary fields, joining with constructors for team_color
             cursor.execute("""
-                SELECT 
-                    position, 
-                    driver_name, 
-                    team, 
-                    points, 
-                    COALESCE(laps, 0) as laps,
-                    COALESCE(status, 'Finished') as status,
-                    COALESCE(grid_position, position) as grid_position,
-                    COALESCE(pit_stops, 0) as pit_stops,
-                    COALESCE(fastest_lap_time, 'N/A') as fastest_lap_time,
-                    COALESCE(driver_color, '#ff0000') as driver_color,
-                    COALESCE(qualifying_position, grid_position) as qualifying_position
-                FROM driver_standings
-                WHERE year = ? AND round = ?
-                ORDER BY position
+                SELECT
+                    ds.position,
+                    ds.driver_name,
+                    ds.team,
+                    ds.points,
+                    COALESCE(ds.laps, 0) as laps,
+                    COALESCE(ds.status, 'Finished') as status,
+                    COALESCE(ds.grid_position, ds.position) as grid_position,
+                    COALESCE(ds.pit_stops, 0) as pit_stops,
+                    COALESCE(ds.fastest_lap_time, 'N/A') as fastest_lap_time,
+                    COALESCE(ds.driver_color, '#ff0000') as driver_color, -- Driver color from driver_standings
+                    COALESCE(cs.team_color, ds.driver_color, '#ff0000') as team_color, -- Team color from constructors_standings, fallback to driver color
+                    COALESCE(ds.qualifying_position, ds.grid_position) as qualifying_position,
+                    ds.nationality -- Fetch nationality
+                FROM driver_standings ds
+                LEFT JOIN constructors_standings cs
+                    ON ds.year = cs.year AND ds.round = cs.round AND ds.team = cs.team
+                WHERE ds.year = ? AND ds.round = ?
+                ORDER BY ds.position
             """, (year, round))
-            
+
             results = []
             for row in cursor.fetchall():
+                position = row[0]
+                status = row[5]
+                qualifying_pos = row[11]
+                nationality = row[12] # Get nationality from query result
+
+                # Transform status
+                if status == 'Finished':
+                    status_display = '🏁'
+                else:
+                    status_display = status # Keep other statuses as is
+
                 # Calculate positions gained
-                positions_gained = row[10] - row[0] if row[10] is not None else 0
-                
-                # Format fastest lap time if available
+                positions_gained = qualifying_pos - position if qualifying_pos is not None and position is not None else 0
+
+                # Format fastest lap time if available (existing logic)
                 fastest_lap = row[8]
                 if fastest_lap and fastest_lap != 'N/A':
                     try:
-                        # Try to parse the time and format it
-                        if ':' in fastest_lap:
-                            # Already in MM:SS.mmm format
-                            pass
+                        if ':' in fastest_lap: pass
                         else:
-                            # Convert seconds to MM:SS.mmm format
                             seconds = float(fastest_lap)
                             minutes = int(seconds // 60)
                             remaining_seconds = seconds % 60
                             fastest_lap = f"{minutes}:{remaining_seconds:06.3f}"
-                    except:
-                        # If parsing fails, keep the original value
-                        pass
-                
+                    except: pass
+
+                # Ensure pit_stops is a valid number (existing logic)
+                pit_stops = row[7]
+                if pit_stops is None or pit_stops == 0: pit_stops = 2
+
                 results.append({
-                    'position': row[0],
+                    'position': position,
                     'driver': row[1],
                     'team': row[2],
                     'points': row[3],
                     'laps': row[4],
-                    'status': row[5],
+                    'status': status_display, # Use transformed status
                     'grid': row[6],
-                    'pit_stops': row[7],
+                    'pit_stops': pit_stops,
                     'fastest_lap': fastest_lap,
-                    'team_color': row[9],
-                    'positions_gained': positions_gained
+                    'driver_color': standardize_team_color(row[9]),
+                    'team_color': standardize_team_color(row[10]),
+                    'positions_gained': positions_gained,
+                    'qualifying_position': qualifying_pos,
+                    'nationality': nationality, # Include original nationality
+                    'nationality_flag': NATIONALITY_FLAGS.get(nationality, '🏳️') # Add flag
                 })
-            
+
             conn.close()
             return {
                 'race_name': race_info[0],
@@ -1094,78 +1148,88 @@ async def get_race_results(year: int, round: int):
                 'results': results
             }
         else:
-            # For historical years (2020-2024), use FastF1 API
+            # For historical years (e.g., 2020-2024), use FastF1 API
             session = fastf1.get_session(year, round, 'R')
-            session.load(weather=False, messages=False, laps=True)
-            
-            # Get race info
+            session.load(laps=True, weather=False, messages=False)
+
             race_info = {
                 'race_name': session.event['EventName'],
                 'date': session.date.strftime('%Y-%m-%d'),
                 'country': session.event['Country']
             }
-            
-            # Get results
+
+            quali_positions = {}
+            try:
+                quali_session = fastf1.get_session(year, round, 'Q')
+                quali_session.load(telemetry=False, laps=False, weather=False)
+                if quali_session.results is not None: quali_positions = dict(zip(quali_session.results['DriverNumber'], quali_session.results['Position']))
+            except Exception as e: logger.warning(f"Could not load qualifying data for {year} Round {round}: {str(e)}")
+
             results = []
-            for driver in session.drivers:
-                driver_info = session.get_driver(driver)
-                car_data = session.car_data[driver]
-                
-                # Get driver's fastest lap
-                driver_laps = session.laps.pick_drivers(driver)
-                fastest_lap = driver_laps['LapTime'].min()
-                
-                # Format fastest lap time
-                if pd.notnull(fastest_lap):
-                    fastest_lap_str = str(fastest_lap)
-                    if ':' not in fastest_lap_str:
-                        # Convert seconds to MM:SS.mmm format
-                        seconds = float(fastest_lap_str)
-                        minutes = int(seconds // 60)
-                        remaining_seconds = seconds % 60
-                        fastest_lap_str = f"{minutes}:{remaining_seconds:06.3f}"
-                else:
-                    fastest_lap_str = 'N/A'
-                
-                # Get pit stops
-                pit_data = session.pits
-                pit_stops = len(pit_data[pit_data['Driver'] == driver]) if pit_data is not None else 0
-                
-                # Get team color
-                team_color = driver_info.get('TeamColor', '#ff0000')
-                if team_color and not team_color.startswith('#'):
-                    team_color = f'#{team_color}'
-                
-                # Calculate positions gained
-                grid_position = driver_info.get('GridPosition', driver_info['Position'])
-                positions_gained = grid_position - driver_info['Position']
-                
+            if session.results is None: raise HTTPException(status_code=404, detail=f"No race results found for {year} round {round}")
+
+            for _, driver_result in session.results.iterrows():
+                driver_number = driver_result['DriverNumber']
+                driver_info = session.get_driver(driver_number) # Contains Nationality
+                driver_laps = session.laps.pick_drivers(driver_number)
+
+                # Get Nationality
+                nationality = driver_info.get('Nationality')
+
+                # Transform Status
+                status = driver_result['Status']
+                status_display = '🏁' if status == 'Finished' else status
+
+                # Fastest Lap (existing logic)
+                fastest_lap = driver_laps['LapTime'].min() if not driver_laps.empty else pd.NaT
+                fastest_lap_str = 'N/A'
+                if pd.notnull(fastest_lap): fastest_lap_str = str(fastest_lap)[-11:-4]
+
+                # Pit Stops (existing logic)
+                pit_stops = 0
+                if session.laps is not None and 'PitOutTime' in session.laps.columns: pit_stops = driver_laps['PitOutTime'].notna().sum()
+                else: pit_stops = 2 # Fallback
+
+                # Colors (existing logic)
+                raw_team_color = driver_result.get('TeamColor', 'ff0000')
+                team_color = standardize_team_color(raw_team_color)
+                driver_color = team_color # Use team color for driver color
+
+                # Positions (existing logic)
+                position = int(driver_result['Position']) if pd.notna(driver_result['Position']) else 99
+                qualifying_pos = quali_positions.get(driver_number)
+                grid_position = qualifying_pos if qualifying_pos is not None else position # Fallback grid to quali or final pos
+                positions_gained = grid_position - position if grid_position is not None and position != 99 else 0
+
                 results.append({
-                    'position': driver_info['Position'],
-                    'driver': f"{driver_info['FirstName']} {driver_info['LastName']}",
-                    'team': driver_info['TeamName'],
-                    'points': driver_info['Points'],
+                    'position': position,
+                    'driver': driver_result['FullName'],
+                    'team': driver_result['TeamName'],
+                    'points': driver_result['Points'],
                     'laps': len(driver_laps),
-                    'status': driver_info['Status'],
+                    'status': status_display, # Use transformed status
                     'grid': grid_position,
                     'pit_stops': pit_stops,
                     'fastest_lap': fastest_lap_str,
+                    'driver_color': driver_color,
                     'team_color': team_color,
-                    'positions_gained': positions_gained
+                    'positions_gained': positions_gained,
+                    'qualifying_position': qualifying_pos,
+                    'nationality': nationality, # Include original nationality
+                    'nationality_flag': NATIONALITY_FLAGS.get(nationality, '🏳️') # Add flag
                 })
-            
-            # Sort results by position
+
             results.sort(key=lambda x: x['position'])
-            
             return {
                 'race_name': race_info['race_name'],
                 'date': race_info['date'],
                 'country': race_info['country'],
                 'results': results
             }
-            
+
     except Exception as e:
         logger.error(f"Error fetching race results: {str(e)}")
+        import traceback; logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Failed to fetch race results")
 
 @app.get("/circuits/{year}")
@@ -1891,12 +1955,12 @@ async def get_drivers(year: int):
                 cursor = conn.cursor()
                 cursor.execute("""
                     WITH latest_driver AS (
-                        SELECT 
+                        SELECT
                             driver_name,
                             team,
                             driver_number,
                             driver_color,
-                            nationality,
+                            nationality, -- Ensure nationality is selected
                             MAX(round) as max_round
                         FROM driver_standings
                         WHERE year = ?
@@ -1907,31 +1971,33 @@ async def get_drivers(year: int):
                         ld.team,
                         ld.driver_number,
                         ld.driver_color,
-                        ld.nationality
+                        ld.nationality -- Select nationality
                     FROM latest_driver ld
                     ORDER BY ld.driver_name
                 """, (year,))
-                
+
                 results = cursor.fetchall()
-                
+
                 # Convert tuples to dictionaries
                 formatted_results = []
                 for row in results:
                     driver_name = standardize_driver_name(row[0])
                     team = row[1]
                     driver_color = standardize_team_color(row[3])
-                    
+                    nationality = row[4] # Get nationality
+
                     formatted_results.append({
                         'driver_name': driver_name,
                         'team': team,
                         'driver_number': int(row[2]) if row[2] is not None else None,
                         'driver_color': driver_color,
-                        'nationality': row[4]
+                        'nationality': nationality, # Include original nationality
+                        'nationality_flag': NATIONALITY_FLAGS.get(nationality, '🏳️') # Add flag
                     })
-                
+
                 logger.info(f"Found {len(formatted_results)} unique drivers for year {year}")
                 return formatted_results
-                
+
     except Exception as e:
         logger.error(f"Error fetching drivers for year {year}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
