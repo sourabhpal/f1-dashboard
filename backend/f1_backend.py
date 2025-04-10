@@ -467,10 +467,9 @@ async def get_standings(year: int):
                         ELSE lt.driver_color
                     END as driver_color,
                     lt.nationality,
-                    cp.total_race_points,
-                    cp.total_sprint_points,
                     cp.total_points,
                     cp.races_participated,
+                    COALESCE(SUM(sprint_points), 0) as sprint_points,
                     DENSE_RANK() OVER (
                         ORDER BY cp.total_points DESC,
                         cp.races_participated DESC,
@@ -478,8 +477,10 @@ async def get_standings(year: int):
                     ) as position
                 FROM latest_team lt
                 JOIN cumulative_points cp ON lt.driver_name = cp.driver_name
+                LEFT JOIN standardized_names sn ON lt.driver_name = sn.driver_name AND sn.year = ?
+                GROUP BY lt.driver_name
                 ORDER BY position, cp.total_points DESC, cp.races_participated DESC
-            """, (year, year))
+            """, (year, year, year))
 
             standings = []
             for row in cursor.fetchall():
@@ -491,11 +492,11 @@ async def get_standings(year: int):
                     "driver_color": row[3],
                     "nationality": nationality,
                     "nationality_flag": NATIONALITY_FLAGS.get(nationality, '🏳️'),
-                    "points": row[5],
-                    "sprint_points": row[6],
-                    "total_points": row[7],
-                    "races_participated": row[8],
-                    "position": row[9]
+                    "total_points": row[5],
+                    "points": row[5] - row[7],  # total_points - sprint_points = race_points
+                    "sprint_points": row[7],
+                    "races_participated": row[6],
+                    "position": row[8]
                 })
 
             return standings

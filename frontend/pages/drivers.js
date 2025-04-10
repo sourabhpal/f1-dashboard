@@ -91,6 +91,8 @@ export default function Drivers() {
           return {
             ...driver,
             total_points: standing.total_points || 0,
+            points: standing.points || 0,
+            sprintPoints: standing.sprint_points || 0,
             position: standing.position || null,
             races_participated: standing.races_participated || 0
           };
