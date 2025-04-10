@@ -45,4 +45,12 @@ services:
             - "backend/.git"
             - "backend/*.pyc"
             - "backend/.pytest_cache"
-            - "backend/*.log" 
+            - "backend/*.log"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel run f1-dev
+    depends_on:
+      - frontend
+    volumes:
+      - ~/.cloudflared:/etc/cloudflared:ro
