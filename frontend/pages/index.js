@@ -94,10 +94,10 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [quickStats, setQuickStats] = useState({
-    mostWins: { driver: '', wins: 0, team: '' },
-    mostPitStops: { driver: '', pits: 0, team: '' },
-    mostPoles: { driver: '', poles: 0, team: '' },
-    mostOvertakes: { driver: '', overtakes: 0, team: '' }
+    mostWins: { driver: '', wins: 0, team: '', team_color: '#ff0000' },
+    mostPitStops: { driver: '', pits: 0, team: '', team_color: '#ff0000' },
+    mostPoles: { driver: '', poles: 0, team: '', team_color: '#ff0000' },
+    mostOvertakes: { driver: '', overtakes: 0, team: '', team_color: '#ff0000' }
   });
 
   useEffect(() => {
@@ -168,104 +168,201 @@ export default function Home() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-8 shadow-xl max-w-7xl mx-auto mb-12"
+          className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-8 shadow-xl max-w-7xl mx-auto mb-12 relative overflow-hidden"
         >
-          <div className="flex flex-col md:flex-row items-center justify-between">
+          {/* Animated background elements */}
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-xl"></div>
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-xl"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-60 h-60 bg-white/5 rounded-full blur-2xl"></div>
+          </div>
+          
+          {/* Racing line animation */}
+          <div className="absolute inset-0 overflow-hidden">
+            <motion.div 
+              className="absolute h-1 bg-white/30 rounded-full"
+              style={{ 
+                width: '100%', 
+                top: '30%',
+                left: '-100%',
+                boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+              }}
+              animate={{ 
+                left: ['-100%', '100%'],
+              }}
+              transition={{ 
+                duration: 3,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            />
+            <motion.div 
+              className="absolute h-1 bg-white/30 rounded-full"
+              style={{ 
+                width: '100%', 
+                top: '70%',
+                left: '-100%',
+                boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+              }}
+              animate={{ 
+                left: ['100%', '-100%'],
+              }}
+              transition={{ 
+                duration: 3,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            />
+          </div>
+          
+          <div className="flex flex-col md:flex-row items-center justify-between relative z-10">
             <div className="text-center md:text-left mb-4 md:mb-0">
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 page-title">
+              <motion.h1 
+                className="text-4xl md:text-5xl font-bold text-white mb-3 page-title"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
                 Monty's F1 Dashboard
-              </h1>
-              <p className="text-gray-200 text-lg">
+              </motion.h1>
+              <motion.p 
+                className="text-gray-200 text-lg md:text-xl"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
                 Comprehensive Formula 1 statistics, race results, and analysis
-              </p>
+              </motion.p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="bg-white/10 rounded-lg p-3">
-                <span className="text-2xl">🏎️</span>
-              </div>
-              <div className="bg-white/10 rounded-lg p-3">
-                <span className="text-2xl">📊</span>
-              </div>
+              <motion.div 
+                className="bg-white/10 rounded-lg p-4 backdrop-blur-sm hover:bg-white/20 transition-all duration-300"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <span className="text-3xl">🏎️</span>
+              </motion.div>
+              <motion.div 
+                className="bg-white/10 rounded-lg p-4 backdrop-blur-sm hover:bg-white/20 transition-all duration-300"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <span className="text-3xl">📊</span>
+              </motion.div>
             </div>
           </div>
         </motion.div>
       </div>
 
       {/* Season Quick Stats */}
-      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 mb-8 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Season Quick Stats</h2>
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-8 mb-8 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-8 page-title text-center">Season Quick Stats</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 min-h-[180px] flex flex-col"
+            style={{
+              borderLeft: `4px solid ${quickStats.mostWins.team_color || '#ff0000'}`,
+            }}
           >
-            <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🏆 Most Wins</h3>
-            <p className="text-2xl font-bold mb-1" style={{ 
-              color: quickStats.mostWins.team_color || '#ff0000',
-              fontFamily: 'Audiowide, sans-serif',
-              fontWeight: 'normal',
-              letterSpacing: '0.5px'
-            }}>
-              {formatDriverName(quickStats.mostWins.driver)}
-            </p>
-            <p className="text-gray-400 tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostWins.wins} wins</p>
-            <p className="text-sm text-gray-500" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostWins.team}</p>
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+              <span className="mr-2">🏆</span> Most Wins
+            </h3>
+            <div className="flex-grow flex flex-col justify-center">
+              <p className="text-2xl font-bold mb-2" style={{ 
+                color: quickStats.mostWins.team_color || '#ff0000',
+                fontFamily: 'Audiowide, sans-serif',
+                fontWeight: 'normal',
+                letterSpacing: '0.5px'
+              }}>
+                {formatDriverName(quickStats.mostWins.driver)}
+              </p>
+              <p className="text-gray-400 tracking-wider mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostWins.wins} wins</p>
+              <p className="text-sm text-gray-500 break-words" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostWins.team}</p>
+            </div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 min-h-[180px] flex flex-col"
+            style={{
+              borderLeft: `4px solid ${quickStats.mostPitStops.team_color || '#ff0000'}`,
+            }}
           >
-            <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>⛽ Most Pit Stops</h3>
-            <p className="text-2xl font-bold mb-1" style={{ 
-              color: quickStats.mostPitStops.team_color || '#ff0000',
-              fontFamily: 'Audiowide, sans-serif',
-              fontWeight: 'normal',
-              letterSpacing: '0.5px'
-            }}>
-              {formatDriverName(quickStats.mostPitStops.driver)}
-            </p>
-            <p className="text-gray-400 tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPitStops.pits} stops</p>
-            <p className="text-sm text-gray-500" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPitStops.team}</p>
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+              <span className="mr-2">⛽</span> Most Pit Stops
+            </h3>
+            <div className="flex-grow flex flex-col justify-center">
+              <p className="text-2xl font-bold mb-2" style={{ 
+                color: quickStats.mostPitStops.team_color || '#ff0000',
+                fontFamily: 'Audiowide, sans-serif',
+                fontWeight: 'normal',
+                letterSpacing: '0.5px'
+              }}>
+                {formatDriverName(quickStats.mostPitStops.driver)}
+              </p>
+              <p className="text-gray-400 tracking-wider mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPitStops.pits} stops</p>
+              <p className="text-sm text-gray-500 break-words" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPitStops.team}</p>
+            </div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 min-h-[180px] flex flex-col"
+            style={{
+              borderLeft: `4px solid ${quickStats.mostPoles.team_color || '#ff0000'}`,
+            }}
           >
-            <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🚩 Most Poles</h3>
-            <p className="text-2xl font-bold mb-1" style={{ 
-              color: quickStats.mostPoles.team_color || '#ff0000',
-              fontFamily: 'Audiowide, sans-serif',
-              fontWeight: 'normal',
-              letterSpacing: '0.5px'
-            }}>
-              {formatDriverName(quickStats.mostPoles.driver)}
-            </p>
-            <p className="text-gray-400 tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPoles.poles} poles</p>
-            <p className="text-sm text-gray-500" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPoles.team}</p>
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+              <span className="mr-2">🚩</span> Most Poles
+            </h3>
+            <div className="flex-grow flex flex-col justify-center">
+              <p className="text-2xl font-bold mb-2" style={{ 
+                color: quickStats.mostPoles.team_color || '#ff0000',
+                fontFamily: 'Audiowide, sans-serif',
+                fontWeight: 'normal',
+                letterSpacing: '0.5px'
+              }}>
+                {formatDriverName(quickStats.mostPoles.driver)}
+              </p>
+              <p className="text-gray-400 tracking-wider mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPoles.poles} poles</p>
+              <p className="text-sm text-gray-500 break-words" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostPoles.team}</p>
+            </div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+            className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300 min-h-[180px] flex flex-col"
+            style={{
+              borderLeft: `4px solid ${quickStats.mostOvertakes.team_color || '#ff0000'}`,
+            }}
           >
-            <h3 className="text-lg font-semibold text-white mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>🔄 Most Overtakes</h3>
-            <p className="text-2xl font-bold mb-1" style={{ 
-              color: quickStats.mostOvertakes.team_color || '#ff0000',
-              fontFamily: 'Audiowide, sans-serif',
-              fontWeight: 'normal',
-              letterSpacing: '0.5px'
-            }}>
-              {formatDriverName(quickStats.mostOvertakes.driver)}
-            </p>
-            <p className="text-gray-400 tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostOvertakes.overtakes} positions</p>
-            <p className="text-sm text-gray-500" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostOvertakes.team}</p>
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+              <span className="mr-2">🔄</span> Most Overtakes
+            </h3>
+            <div className="flex-grow flex flex-col justify-center">
+              <p className="text-2xl font-bold mb-2" style={{ 
+                color: quickStats.mostOvertakes.team_color || '#ff0000',
+                fontFamily: 'Audiowide, sans-serif',
+                fontWeight: 'normal',
+                letterSpacing: '0.5px'
+              }}>
+                {formatDriverName(quickStats.mostOvertakes.driver)}
+              </p>
+              <p className="text-gray-400 tracking-wider mb-2" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostOvertakes.overtakes} positions</p>
+              <p className="text-sm text-gray-500 break-words" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{quickStats.mostOvertakes.team}</p>
+            </div>
           </motion.div>
         </div>
       </div>
@@ -329,13 +426,15 @@ export default function Home() {
       )}
 
       {/* Current Driver and Constructor Standings */}
-      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 mb-8 shadow-xl">
-        <h2 className="text-2xl font-bold text-white mb-6 page-title text-center">Current Standings</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-8 mb-8 shadow-xl">
+        <h2 className="text-2xl font-bold text-white mb-8 page-title text-center">Current Standings</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           {/* Driver Standings */}
           <div>
-            <h3 className="text-xl font-bold text-white mb-4 page-title">Driver Standings</h3>
-            <div className="grid gap-6">
+            <h3 className="text-xl font-bold text-white mb-6 page-title flex items-center">
+              <span className="mr-2">👤</span> Driver Standings
+            </h3>
+            <div className="grid gap-5">
               {standings.slice(0, 3).map((driver, index) => (
                 <motion.div
                   key={driver.driver_name}
@@ -347,7 +446,10 @@ export default function Home() {
                     y: -5,
                     transition: { duration: 0.2 }
                   }}
-                  className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+                  className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-5 shadow-lg hover:shadow-xl transition-shadow duration-300 h-24 flex items-center"
+                  style={{
+                    borderLeft: `4px solid ${driver.driver_color || '#ff0000'}`,
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
@@ -359,7 +461,7 @@ export default function Home() {
                         {driver.position}
                       </motion.div>
                       <div className="flex items-center">
-                        <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
+                        <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1 mr-3">
                           <Image
                             src={`/images/drivers/${driver.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
                             alt={`${driver.driver_name}`}
@@ -371,17 +473,20 @@ export default function Home() {
                             }}
                           />
                         </div>
-                        <h3 
-                          className="text-lg font-medium ml-3"
-                          style={{ 
-                            color: driver.driver_color || '#ff0000',
-                            fontFamily: 'Audiowide, sans-serif',
-                            fontWeight: 'normal',
-                            letterSpacing: '0.5px'
-                          }}
-                        >
-                          {formatDriverName(driver.driver_name)}
-                        </h3>
+                        <div>
+                          <h3 
+                            className="text-xl font-medium"
+                            style={{ 
+                              color: driver.driver_color || '#ff0000',
+                              fontFamily: 'Audiowide, sans-serif',
+                              fontWeight: 'normal',
+                              letterSpacing: '0.5px'
+                            }}
+                          >
+                            {formatDriverName(driver.driver_name)}
+                          </h3>
+                          <p className="text-gray-400 text-xl" style={{ fontFamily: 'Genos, sans-serif', fontWeight: '500' }}>{driver.team}</p>
+                        </div>
                       </div>
                     </div>
                     <motion.div 
@@ -398,8 +503,10 @@ export default function Home() {
 
           {/* Constructor Standings */}
           <div>
-            <h3 className="text-xl font-bold text-white mb-4 page-title">Constructor Standings</h3>
-            <div className="grid gap-6">
+            <h3 className="text-xl font-bold text-white mb-6 page-title flex items-center">
+              <span className="mr-2">🏆</span> Constructor Standings
+            </h3>
+            <div className="grid gap-5">
               {Object.values(standings.reduce((acc, driver) => {
                 const team = driver.team;
                 if (!acc[team]) {
@@ -430,7 +537,10 @@ export default function Home() {
                     y: -5,
                     transition: { duration: 0.2 }
                   }}
-                  className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
+                  className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-5 shadow-lg hover:shadow-xl transition-shadow duration-300 h-24 flex items-center"
+                  style={{
+                    borderLeft: `4px solid ${team.driver_color || '#ff0000'}`,
+                  }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
@@ -457,7 +567,7 @@ export default function Home() {
                         </div>
                         <div>
                           <h3 
-                            className="text-lg font-medium"
+                            className="text-xl font-medium"
                             style={{ 
                               color: team.driver_color || '#ff0000',
                               fontFamily: 'Genos, sans-serif',

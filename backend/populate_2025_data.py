@@ -9,6 +9,7 @@ import hashlib
 import numpy as np
 import shutil
 from tqdm import tqdm
+from f1_backend import create_tables, get_db_connection, calculate_points
 
 # Configure logging with a cleaner format
 logging.basicConfig(
@@ -293,34 +294,27 @@ def standardize_driver_name(name):
     }
     return name_mapping.get(name, name)
 
-def process_race_data(session, round_num, cursor, year=2025):
+def process_race_data(session, round_num, cursor, year=2025, is_sprint=False):
     """Process race data efficiently in batches."""
-    if session is None or session.results is None:
-        return
-    
     try:
-        # Prepare batch data
-        driver_data = []
-        team_data = {}
-        
-        # Get qualifying positions once
+        # Get qualifying positions
         quali_positions = {}
         try:
-            quali_session = load_session_data(year, round_num, 'Q')
-            if quali_session and quali_session.results is not None:
-                quali_positions = dict(zip(
-                    quali_session.results['DriverNumber'],
-                    quali_session.results['Position']
-                ))
+            quali_session = fastf1.get_session(year, round_num, 'Q')
+            quali_session.load()
+            for _, driver in quali_session.results.iterrows():
+                quali_positions[driver['DriverNumber']] = driver['Position']
         except Exception as e:
-            logger.warning(f"Could not load qualifying data for Round {round_num}: {str(e)}")
-        
-        # Process all drivers at once
+            logger.warning(f"Error getting qualifying data for round {round_num}: {str(e)}")
+
+        # Process race results
+        driver_data = []
+        team_data = {}
+
         for _, driver in session.results.iterrows():
             driver_number = driver['DriverNumber']
-            driver_name = standardize_driver_name(driver['FullName'])  # Standardize the driver name
+            driver_name = standardize_driver_name(driver['FullName'])
             team = driver['TeamName']
-            points = driver['Points']
             position = driver['Position']
             
             # Calculate positions gained
@@ -340,22 +334,16 @@ def process_race_data(session, round_num, cursor, year=2025):
                 # Try to get pit stops from telemetry data
                 if hasattr(session, 'car_data') and session.car_data is not None:
                     try:
-                        # Get car data for this driver
                         if driver_number in session.car_data:
                             car_data = session.car_data[driver_number]
                             if not car_data.empty:
-                                # Look for pit stops by detecting gaps in the data
-                                # or by looking for specific telemetry patterns
-                                # This is a simplified approach - in a real implementation,
-                                # you would use more sophisticated detection methods
-                                pit_stops = 2  # Default to 2 pit stops for most races
+                                pit_stops = 2 if not is_sprint else 0  # Default to 2 pit stops for main race, 0 for sprint
                     except Exception as e:
                         logger.warning(f"Error getting pit stops from car data for {driver_name}: {str(e)}")
                 
                 # If we couldn't get pit stops from car data, use a reasonable default
-                if pit_stops == 0:
-                    # Most races have 2 pit stops
-                    pit_stops = 2
+                if pit_stops == 0 and not is_sprint:
+                    pit_stops = 2  # Most races have 2 pit stops
                 
                 # Get fastest lap
                 if driver_laps is not None and not driver_laps.empty:
@@ -366,16 +354,52 @@ def process_race_data(session, round_num, cursor, year=2025):
                     fastest_lap_time = "Fastest Lap"
             except Exception as e:
                 logger.warning(f"Error calculating pit stops and fastest lap for {driver_name}: {str(e)}")
-                # Generate a random number of pit stops between 1 and 3 as a fallback
-                pit_stops = np.random.randint(1, 4)
+                pit_stops = 2 if not is_sprint else 0  # Default values
             
-            # Prepare driver data
-            driver_data.append((
-                year, round_num, driver_name, team, points, 0,  # total_points will be updated later
-                position, fastest_lap_time, quali_pos, positions_gained,
-                pit_stops, driver_number, driver['TeamColor'],
-                driver.get('Nationality', 'Unknown')
-            ))
+            # Calculate points based on position and race type
+            points = calculate_points(position, is_fastest_lap=(fastest_lap_time == "Fastest Lap"), is_sprint=is_sprint)
+            
+            # Check if a record exists for this driver in this round
+            cursor.execute("""
+                SELECT points, sprint_points, is_sprint
+                FROM driver_standings
+                WHERE year = ? AND round = ? AND driver_name = ?
+            """, (year, round_num, driver_name))
+            existing_record = cursor.fetchone()
+            
+            if existing_record:
+                # Update existing record
+                if is_sprint:
+                    # Update sprint points
+                    cursor.execute("""
+                        UPDATE driver_standings
+                        SET sprint_points = ?,
+                            sprint_position = ?,
+                            is_sprint = 1
+                        WHERE year = ? AND round = ? AND driver_name = ?
+                    """, (points, position, year, round_num, driver_name))
+                else:
+                    # Update race points
+                    cursor.execute("""
+                        UPDATE driver_standings
+                        SET points = ?,
+                            position = ?,
+                            is_sprint = 0
+                        WHERE year = ? AND round = ? AND driver_name = ?
+                    """, (points, position, year, round_num, driver_name))
+            else:
+                # Create new record
+                driver_data.append((
+                    year, round_num, driver_name, team,
+                    0 if is_sprint else points,  # race points
+                    0,  # total_points will be updated later
+                    None if is_sprint else position,  # position (main race)
+                    fastest_lap_time, quali_pos, positions_gained,
+                    pit_stops, driver_number, driver['TeamColor'],
+                    driver.get('Nationality', 'Unknown'), is_sprint,
+                    points if is_sprint else 0,  # sprint points
+                    position if is_sprint else None  # sprint position
+                ))
             
             # Update team data
             if team not in team_data:
@@ -384,7 +408,8 @@ def process_race_data(session, round_num, cursor, year=2025):
                     'wins': 0,
                     'podiums': 0,
                     'fastest_laps': 0,
-                    'color': driver['TeamColor']
+                    'color': driver['TeamColor'],
+                    'is_sprint': is_sprint
                 }
             
             team_data[team]['points'] += points
@@ -395,38 +420,115 @@ def process_race_data(session, round_num, cursor, year=2025):
             if driver.get('FastestLap', False):
                 team_data[team]['fastest_laps'] += 1
         
-        # Batch insert driver data
-        cursor.executemany("""
-            INSERT OR REPLACE INTO driver_standings 
-            (year, round, driver_name, team, points, total_points, position,
-            fastest_lap_time, qualifying_position, positions_gained, pit_stops,
-            driver_number, driver_color, nationality)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, driver_data)
+        # Batch insert driver data (only for new records)
+        if driver_data:
+            cursor.executemany("""
+                INSERT INTO driver_standings 
+                (year, round, driver_name, team, points, total_points, position,
+                 fastest_lap_time, qualifying_position, positions_gained, pit_stops,
+                 driver_number, driver_color, nationality, is_sprint, sprint_points,
+                 sprint_position)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, driver_data)
         
-        # Batch insert team data
-        team_standings = [
-            (year, round_num, team, data['points'], 0,  # total_points will be updated later
-             len([t for t in team_data if team_data[t]['points'] > data['points']]) + 1,
-             data['wins'], data['podiums'], data['fastest_laps'],
-             f"#{data['color']}" if pd.notna(data['color']) and not str(data['color']).startswith('#') else str(data['color']))
-            for team, data in team_data.items()
-        ]
-        
-        cursor.executemany("""
-            INSERT OR REPLACE INTO constructors_standings 
-            (year, round, team, points, total_points, position, wins, podiums,
-            fastest_laps, team_color)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, team_standings)
+        # For sprint races, update the team data
+        if is_sprint:
+            for team, data in team_data.items():
+                # Check if team record exists
+                cursor.execute("""
+                    SELECT points, sprint_points, is_sprint
+                    FROM constructors_standings
+                    WHERE year = ? AND round = ? AND team = ?
+                """, (year, round_num, team))
+                existing_team = cursor.fetchone()
+                
+                if existing_team:
+                    # Update sprint points
+                    cursor.execute("""
+                        UPDATE constructors_standings
+                        SET sprint_points = ?,
+                            sprint_position = ?,
+                            is_sprint = 1
+                        WHERE year = ? AND round = ? AND team = ?
+                    """, (
+                        data['points'],
+                        len([t for t in team_data if team_data[t]['points'] > data['points']]) + 1,
+                        year, round_num, team
+                    ))
+                else:
+                    # Create new team record
+                    cursor.execute("""
+                        INSERT INTO constructors_standings 
+                        (year, round, team, points, total_points, position, wins, podiums,
+                         fastest_laps, team_color, is_sprint, sprint_points, sprint_position)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        year, round_num, team,
+                        0,  # race points
+                        0,  # total_points will be updated later
+                        None,  # position (main race)
+                        data['wins'], data['podiums'], data['fastest_laps'],
+                        f"#{data['color']}" if pd.notna(data['color']) and not str(data['color']).startswith('#') else str(data['color']),
+                        True,  # is_sprint
+                        data['points'],  # sprint points
+                        len([t for t in team_data if team_data[t]['points'] > data['points']]) + 1  # sprint position
+                    ))
+        else:
+            # For main races, update team data
+            for team, data in team_data.items():
+                # Check if team record exists
+                cursor.execute("""
+                    SELECT points, sprint_points, is_sprint
+                    FROM constructors_standings
+                    WHERE year = ? AND round = ? AND team = ?
+                """, (year, round_num, team))
+                existing_team = cursor.fetchone()
+                
+                if existing_team:
+                    # Update race points
+                    cursor.execute("""
+                        UPDATE constructors_standings
+                        SET points = ?,
+                            position = ?,
+                            wins = ?,
+                            podiums = ?,
+                            fastest_laps = ?,
+                            is_sprint = 0
+                        WHERE year = ? AND round = ? AND team = ?
+                    """, (
+                        data['points'],
+                        len([t for t in team_data if team_data[t]['points'] > data['points']]) + 1,
+                        data['wins'],
+                        data['podiums'],
+                        data['fastest_laps'],
+                        year, round_num, team
+                    ))
+                else:
+                    # Create new team record
+                    cursor.execute("""
+                        INSERT INTO constructors_standings 
+                        (year, round, team, points, total_points, position, wins, podiums,
+                         fastest_laps, team_color, is_sprint, sprint_points, sprint_position)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        year, round_num, team,
+                        data['points'],  # race points
+                        0,  # total_points will be updated later
+                        len([t for t in team_data if team_data[t]['points'] > data['points']]) + 1,
+                        data['wins'], data['podiums'], data['fastest_laps'],
+                        f"#{data['color']}" if pd.notna(data['color']) and not str(data['color']).startswith('#') else str(data['color']),
+                        False,  # is_sprint
+                        0,  # sprint points
+                        None  # sprint position
+                    ))
         
         # Update total points after each race
         update_total_points(cursor, year)
         
-        logger.info(f"Successfully processed data for Round {round_num}")
+        logger.info(f"Successfully processed {'sprint' if is_sprint else 'race'} data for Round {round_num}")
         
     except Exception as e:
-        logger.error(f"Error processing race data for Round {round_num}: {str(e)}")
+        logger.error(f"Error processing {'sprint' if is_sprint else 'race'} data for Round {round_num}: {str(e)}")
         raise
 
 def update_total_points(cursor, year=2025):
@@ -438,7 +540,7 @@ def update_total_points(cursor, year=2025):
                 SELECT 
                     driver_name,
                     round,
-                    SUM(points) OVER (
+                    SUM(points + sprint_points) OVER (
                         PARTITION BY driver_name 
                         ORDER BY round
                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
@@ -462,7 +564,7 @@ def update_total_points(cursor, year=2025):
                 SELECT 
                     team,
                     round,
-                    SUM(points) OVER (
+                    SUM(points + sprint_points) OVER (
                         PARTITION BY team 
                         ORDER BY round
                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
@@ -486,116 +588,87 @@ def update_total_points(cursor, year=2025):
         logger.error(f"Error updating total points: {str(e)}")
         raise
 
-def populate_2025_data(force_rebuild=False):
-    """Populate the database with 2025 season data from FastF1 API."""
-    start_time = time.time()
-    
-    # Check if rebuild is needed
-    if not force_rebuild and not needs_rebuild():
-        logger.info("Database is up to date, no rebuild needed")
-        return
-        
-    logger.info("Starting database rebuild...")
-    
-    # Create a temporary database path
-    temp_db_path = db_path + '.temp'
-    backup_db_path = db_path + '.backup'
-    
-    # If the database exists, try to create a backup
-    if os.path.exists(db_path):
-        try:
-            shutil.copy2(db_path, backup_db_path)
-            logger.info(f"Created backup of existing database at {backup_db_path}")
-        except Exception as e:
-            logger.warning(f"Could not create backup of database: {str(e)}")
-    
-    # Initialize new database with temporary path
-    init_db(temp_db_path)
-    
-    conn = None
+def populate_2025_data():
+    """Populate the database with 2025 F1 data."""
     try:
-        # Connect to temporary database
-        conn = sqlite3.connect(temp_db_path)
-        cursor = conn.cursor()
-        
-        # Fetch schedule from FastF1
-        logger.info("Fetching 2025 schedule from FastF1...")
-        schedule = fastf1.get_event_schedule(2025)
-        
-        # Process each event in the schedule with progress bar
-        for _, event in tqdm(schedule.iterrows(), total=len(schedule), desc="Processing races"):
-            round_num = event['RoundNumber']
+        # Get database connection using context manager
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
             
-            # Skip testing events (round 0)
-            if round_num == 0:
-                continue
+            # Drop all existing tables to ensure clean schema
+            cursor.execute("DROP TABLE IF EXISTS race_schedule")
+            cursor.execute("DROP TABLE IF EXISTS driver_standings")
+            cursor.execute("DROP TABLE IF EXISTS constructors_standings")
+            
+            # Create tables with updated schema
+            create_tables()
+            
+            # Get 2025 schedule
+            schedule = fastf1.get_event_schedule(2025)
+            
+            # Get current date
+            current_date = datetime.now().date()
+            
+            # Process each race
+            for _, event in schedule.iterrows():
+                round_num = event['RoundNumber']
+                race_date = event['EventDate'].date()
                 
-            # Get event details
-            event_name = event['EventName']
-            circuit_name = event['CircuitName'] if 'CircuitName' in event else event['EventName']
-            location = event['Location'] if 'Location' in event else ''
-            country = event['Country']
-            event_date = pd.to_datetime(event['EventDate']).strftime('%Y-%m-%d') if pd.notna(event['EventDate']) else None
-            
-            logger.info(f"Processing {event_name} (Round {round_num})")
-            
-            # Insert race schedule
-            cursor.execute("""
-                INSERT OR REPLACE INTO race_schedule 
-                (year, round, name, date, event, country)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (2025, round_num, event_name, event_date, event_name, country))
-            
-            # Check if race has been completed
-            if event_date:
-                race_date = datetime.strptime(event_date, '%Y-%m-%d')
-                current_date = datetime.now()
+                # Skip races that haven't happened yet
                 if race_date > current_date:
-                    logger.info(f"Skipping {event_name} as it hasn't been completed yet")
+                    logger.info(f"Skipping Round {round_num} ({event['EventName']}) - Race hasn't happened yet (scheduled for {race_date})")
+                    continue
+                
+                # Store race schedule
+                cursor.execute("""
+                    INSERT OR REPLACE INTO race_schedule
+                    (year, round, name, date, country, is_sprint)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    2025,
+                    round_num,
+                    event['EventName'],
+                    event['EventDate'].strftime('%Y-%m-%d'),
+                    event['Country'],
+                    event['EventFormat'] in ['sprint', 'sprint_qualifying']
+                ))
+                
+                try:
+                    # Check if this is a sprint race
+                    is_sprint = event['EventFormat'] in ['sprint', 'sprint_qualifying']
+                    if is_sprint:
+                        logger.info(f"Loading sprint session for Round {round_num} ({event['EventName']})")
+                        sprint_session = fastf1.get_session(2025, round_num, 'S')
+                        if sprint_session:
+                            logger.info("Sprint session found, loading data...")
+                            sprint_session.load()
+                            logger.info("Processing sprint race data...")
+                            process_race_data(sprint_session, round_num, cursor, year=2025, is_sprint=True)
+                        else:
+                            logger.warning("No sprint session found")
+                    
+                    # Process main race
+                    logger.info(f"Loading main race session for Round {round_num} ({event['EventName']})")
+                    race_session = fastf1.get_session(2025, round_num, 'R')
+                    if race_session:
+                        logger.info("Race session found, loading data...")
+                        race_session.load()
+                        logger.info("Processing main race data...")
+                        process_race_data(race_session, round_num, cursor, year=2025, is_sprint=False)
+                    else:
+                        logger.warning("No race session found")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing Round {round_num}: {str(e)}")
                     continue
             
-            # Load and process race data
-            session = load_session_data(2025, round_num)
-            if session:
-                process_race_data(session, round_num, cursor)
+            conn.commit()
             
-            # Add a small delay to avoid rate limiting
-            time.sleep(0.5)
-        
-        # Update total points after processing all races
-        update_total_points(cursor)
-        
-        conn.commit()
-        logger.info("Successfully populated all 2025 data")
+        logger.info("Successfully populated 2025 data")
         
     except Exception as e:
         logger.error(f"Error populating 2025 data: {str(e)}")
-        if conn is not None:
-            conn.rollback()
         raise
-    finally:
-        if conn is not None:
-            conn.close()
-        
-        # Replace old database with new one
-        try:
-            if os.path.exists(db_path):
-                os.remove(db_path)
-            os.rename(temp_db_path, db_path)
-            logger.info("Successfully replaced old database with new one")
-            
-            # Remove backup if everything succeeded
-            if os.path.exists(backup_db_path):
-                os.remove(backup_db_path)
-        except Exception as e:
-            logger.error(f"Error replacing database: {str(e)}")
-            if os.path.exists(backup_db_path):
-                shutil.copy2(backup_db_path, db_path)
-                logger.info("Restored database from backup")
-    
-    end_time = time.time()
-    duration = end_time - start_time
-    logger.info(f"Database rebuild completed in {duration:.2f} seconds")
 
 if __name__ == "__main__":
-    populate_2025_data(force_rebuild=True) 
+    populate_2025_data() 
