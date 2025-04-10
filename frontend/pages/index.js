@@ -179,16 +179,126 @@ export default function Home() {
           
           {/* Racing line animation */}
           <div className="absolute inset-0 overflow-hidden">
+            {/* Primary racing lines */}
             <motion.div 
-              className="absolute h-1 bg-white/30 rounded-full"
+              className="absolute h-1 bg-white/40 rounded-full"
               style={{ 
                 width: '100%', 
-                top: '30%',
+                top: '25%',
                 left: '-100%',
-                boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+                boxShadow: '0 0 15px rgba(255,255,255,0.7)'
               }}
               animate={{ 
                 left: ['-100%', '100%'],
+              }}
+              transition={{ 
+                duration: 2.5,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            />
+            <motion.div 
+              className="absolute h-1 bg-white/40 rounded-full"
+              style={{ 
+                width: '100%', 
+                top: '75%',
+                left: '-100%',
+                boxShadow: '0 0 15px rgba(255,255,255,0.7)'
+              }}
+              animate={{ 
+                left: ['100%', '-100%'],
+              }}
+              transition={{ 
+                duration: 2.5,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            />
+            
+            {/* Secondary racing lines (thinner, slower) */}
+            <motion.div 
+              className="absolute h-0.5 bg-white/20 rounded-full"
+              style={{ 
+                width: '100%', 
+                top: '40%',
+                left: '-100%',
+                boxShadow: '0 0 8px rgba(255,255,255,0.4)'
+              }}
+              animate={{ 
+                left: ['-100%', '100%'],
+              }}
+              transition={{ 
+                duration: 3.5,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            />
+            <motion.div 
+              className="absolute h-0.5 bg-white/20 rounded-full"
+              style={{ 
+                width: '100%', 
+                top: '60%',
+                left: '-100%',
+                boxShadow: '0 0 8px rgba(255,255,255,0.4)'
+              }}
+              animate={{ 
+                left: ['100%', '-100%'],
+              }}
+              transition={{ 
+                duration: 3.5,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            />
+            
+            {/* Mobile-optimized racing lines (hidden on larger screens) */}
+            <div className="md:hidden">
+              <motion.div 
+                className="absolute h-0.5 bg-white/30 rounded-full"
+                style={{ 
+                  width: '100%', 
+                  top: '15%',
+                  left: '-100%',
+                  boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+                }}
+                animate={{ 
+                  left: ['-100%', '100%'],
+                }}
+                transition={{ 
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "linear"
+                }}
+              />
+              <motion.div 
+                className="absolute h-0.5 bg-white/30 rounded-full"
+                style={{ 
+                  width: '100%', 
+                  top: '85%',
+                  left: '-100%',
+                  boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+                }}
+                animate={{ 
+                  left: ['100%', '-100%'],
+                }}
+                transition={{ 
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "linear"
+                }}
+              />
+            </div>
+            
+            {/* Racing dots (mobile-friendly) */}
+            <motion.div 
+              className="absolute w-2 h-2 bg-white rounded-full"
+              style={{ 
+                top: '30%',
+                left: '-10px',
+                boxShadow: '0 0 10px rgba(255,255,255,0.8)'
+              }}
+              animate={{ 
+                left: ['-10px', '100%'],
               }}
               transition={{ 
                 duration: 3,
@@ -197,15 +307,14 @@ export default function Home() {
               }}
             />
             <motion.div 
-              className="absolute h-1 bg-white/30 rounded-full"
+              className="absolute w-2 h-2 bg-white rounded-full"
               style={{ 
-                width: '100%', 
                 top: '70%',
-                left: '-100%',
-                boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+                left: '-10px',
+                boxShadow: '0 0 10px rgba(255,255,255,0.8)'
               }}
               animate={{ 
-                left: ['100%', '-100%'],
+                left: ['100%', '-10px'],
               }}
               transition={{ 
                 duration: 3,
