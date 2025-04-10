@@ -202,7 +202,7 @@ export default function Drivers() {
         <motion.div 
           className="absolute inset-0 opacity-0"
           style={{ 
-            background: `linear-gradient(45deg, ${driver.driver_color}33, transparent)`,
+            background: `linear-gradient(135deg, ${driver.driver_color}22, ${driver.driver_color}11)`,
           }}
           whileHover={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
@@ -420,14 +420,27 @@ export default function Drivers() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="relative overflow-hidden rounded-lg shadow-lg cursor-pointer hover:shadow-xl transition-shadow duration-300"
+                className="relative overflow-hidden rounded-lg shadow-md cursor-pointer hover:shadow-lg transition-all duration-300 ease-in-out group"
                 style={{
                   borderLeft: `2px solid ${driver.driver_color || '#ffffff'}`,
                   borderTop: `2px solid ${driver.driver_color || '#ffffff'}`,
-                  borderRadius: '1rem'
+                  borderRadius: '1rem',
+                  transform: 'translateY(0)',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.08)',
+                }}
+                whileHover={{ 
+                  scale: 1.015,
+                  boxShadow: '0 6px 12px rgba(0, 0, 0, 0.12)',
+                  transition: { duration: 0.25, ease: "easeOut" }
                 }}
                 onClick={() => handleDriverClick(driver)}
               >
+                <div 
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{
+                    background: `linear-gradient(135deg, ${driver.driver_color}15, ${driver.driver_color}08)`,
+                  }}
+                />
                 <div className="relative h-96">
                   {/* Driver image */}
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -436,26 +449,38 @@ export default function Drivers() {
                       alt={driver.driver_name}
                       width={300}
                       height={300}
-                      className="object-contain"
+                      className="object-contain transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
                         e.target.src = '/images/drivers/default.png';
                       }}
                     />
                   </div>
                   
+                  {/* Hover overlay effect */}
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${driver.driver_color}15, ${driver.driver_color}08)`,
+                    }}
+                  ></div>
+                  
                   {/* Driver number in the top right */}
                   {driver.driver_number && (
-                    <div className="absolute top-4 right-4">
-                      <span 
-                        className="text-6xl font-bold" 
-                        style={{ 
-                          fontFamily: 'Audiowide, sans-serif',
-                          color: driver.driver_color || '#ffffff',
-                          textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)'
+                    <div className="absolute top-4 right-4 w-16 h-16">
+                      <Image
+                        src={`/images/driver-numbers/${driver.driver_number}.png`}
+                        alt={`${driver.driver_name}'s number ${driver.driver_number}`}
+                        width={64}
+                        height={64}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          // If image fails to load, fallback to text number
+                          e.target.parentElement.innerHTML = `<span 
+                            class="text-6xl font-bold" 
+                            style="font-family: Audiowide, sans-serif; color: ${driver.driver_color || '#ffffff'}; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);"
+                          >${driver.driver_number}</span>`;
                         }}
-                      >
-                        {driver.driver_number}
-                      </span>
+                      />
                     </div>
                   )}
                   
@@ -474,12 +499,12 @@ export default function Drivers() {
                   )}
                 </div>
                 
-                <div className="p-6 bg-gray-900/80 backdrop-blur-sm">
+                <div className="p-6 bg-gray-900/80 backdrop-blur-sm group-hover:bg-gray-800/90 transition-colors duration-300">
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <div className="flex items-center gap-2">
                         <h2 
-                          className="text-xl text-white" 
+                          className="text-xl text-white group-hover:text-white transition-colors duration-300" 
                           style={{ 
                             fontFamily: 'Audiowide, sans-serif', 
                             fontWeight: 'normal',
@@ -490,21 +515,21 @@ export default function Drivers() {
                           {formatDriverName(driver.driver_name)}
                         </h2>
                         {driver.nationality_flag && (
-                          <span className="text-2xl ml-2">{driver.nationality_flag}</span>
+                          <span className="text-2xl ml-2 group-hover:scale-110 transition-transform duration-300">{driver.nationality_flag}</span>
                         )}
                       </div>
-                      <p className="text-gray-400 text-sm" style={{ fontFamily: 'Genos, sans-serif', fontWeight: '500' }}>{driver.team}</p>
+                      <p className="text-gray-400 text-sm group-hover:text-gray-300 transition-colors duration-300" style={{ fontFamily: 'Genos, sans-serif', fontWeight: '500' }}>{driver.team}</p>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
-                      <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Points</p>
-                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.total_points || 0}</p>
+                      <p className="text-gray-400 text-xs group-hover:text-gray-300 transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Points</p>
+                      <p className="text-white font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.total_points || 0}</p>
                     </div>
                     <div>
-                      <p className="text-gray-400 text-xs" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Races</p>
-                      <p className="text-white font-bold" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.races_participated || 0}</p>
+                      <p className="text-gray-400 text-xs group-hover:text-gray-300 transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Races</p>
+                      <p className="text-white font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.races_participated || 0}</p>
                     </div>
                   </div>
                 </div>
