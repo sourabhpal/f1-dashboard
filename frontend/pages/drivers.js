@@ -224,7 +224,12 @@ export default function Drivers() {
           </div>
         </div>
         <div className="flex justify-between text-sm text-gray-500 relative z-10">
-          <div>#{driver.driver_number || '-'}</div>
+          <div className="flex items-center">
+            <span className="mr-1">#{driver.driver_number || '-'}</span>
+            {driver.nationality_flag && (
+              <span className="text-base">{driver.nationality_flag}</span>
+            )}
+          </div>
           <div>{driver.races_participated || 0} races</div>
         </div>
       </motion.div>
@@ -272,9 +277,16 @@ export default function Drivers() {
               />
             </div>
             <div className="flex-1 text-center md:text-left">
-              <h2 className="text-2xl font-bold text-white" style={{ color: driver.driver_color }}>{formatDriverName(driver.driver_name)}</h2>
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <h2 className="text-2xl font-bold text-white" style={{ color: driver.driver_color }}>{formatDriverName(driver.driver_name)}</h2>
+                {driver.nationality_flag && (
+                  <span className="text-2xl">{driver.nationality_flag}</span>
+                )}
+              </div>
               <p className="text-gray-400">{driver.team}</p>
-              <p className="text-gray-500">Championship Position: {driver.position || 'N/A'}</p>
+              <div className="flex items-center justify-center md:justify-start gap-2">
+                <p className="text-gray-500">Championship Position: {driver.position || 'N/A'}</p>
+              </div>
             </div>
           </div>
           
@@ -477,8 +489,8 @@ export default function Drivers() {
                         >
                           {formatDriverName(driver.driver_name)}
                         </h2>
-                        {driver.nationality && countryFlags[driver.nationality] && (
-                          <span className="text-2xl ml-2">{countryFlags[driver.nationality]}</span>
+                        {driver.nationality_flag && (
+                          <span className="text-2xl ml-2">{driver.nationality_flag}</span>
                         )}
                       </div>
                       <p className="text-gray-400 text-sm" style={{ fontFamily: 'Genos, sans-serif', fontWeight: '500' }}>{driver.team}</p>

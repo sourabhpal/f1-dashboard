@@ -374,7 +374,7 @@ def process_race_data(session, round_num, cursor, year=2025):
                 year, round_num, driver_name, team, points, 0,  # total_points will be updated later
                 position, fastest_lap_time, quali_pos, positions_gained,
                 pit_stops, driver_number, driver['TeamColor'],
-                driver.get('Nationality', 'Unknown')
+                driver.get('Nationality', 'Unknown')  # Get nationality from driver data
             ))
             
             # Update team data
