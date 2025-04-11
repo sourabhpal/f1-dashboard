@@ -72,6 +72,7 @@ def get_schema_hash():
         driver_number INTEGER,
         driver_color TEXT,
         nationality TEXT,
+        sprint_points INTEGER DEFAULT 0,
         PRIMARY KEY (year, round, driver_name)
     );
 
@@ -189,6 +190,7 @@ def init_db(db_path=None):
                 driver_number INTEGER,
                 driver_color TEXT,
                 nationality TEXT,
+                sprint_points INTEGER DEFAULT 0,
                 PRIMARY KEY (year, round, driver_name)
             )
         """)

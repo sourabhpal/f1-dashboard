@@ -65,6 +65,7 @@ def get_schema_hash():
         pit_stops INTEGER,
         driver_number INTEGER,
         driver_color TEXT,
+        nationality TEXT,
         PRIMARY KEY (year, round, driver_name)
     );
 
@@ -137,6 +138,7 @@ def init_db():
                 pit_stops INTEGER,
                 driver_number INTEGER,
                 driver_color TEXT,
+                nationality TEXT,
                 PRIMARY KEY (year, round, driver_name)
             )
         """)
@@ -278,8 +280,8 @@ def populate_historical_data(year):
                             INSERT OR REPLACE INTO driver_standings 
                             (year, round, driver_name, team, points, position, 
                              fastest_lap_time, qualifying_position, positions_gained, 
-                             pit_stops, driver_number, driver_color)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             pit_stops, driver_number, driver_color, nationality)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
                             year, round_num,
                             driver_info['FullName'],
@@ -291,7 +293,8 @@ def populate_historical_data(year):
                             positions_gained,
                             result.get('NumberOfPitStops', 0),
                             driver,
-                            team_color
+                            team_color,
+                            driver_info.get('Nationality', 'Unknown')
                         ))
                     conn.commit()
                 
