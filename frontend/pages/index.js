@@ -560,7 +560,7 @@ export default function Home() {
                     borderLeft: `4px solid ${driver.driver_color || '#ff0000'}`,
                   }}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between w-full">
                     <div className="flex items-center">
                       <motion.div 
                         className="text-3xl font-bold mr-4"
@@ -599,10 +599,12 @@ export default function Home() {
                       </div>
                     </div>
                     <motion.div 
-                      className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
+                      className="text-2xl font-bold text-white tracking-wider ml-auto"
                       whileHover={{ scale: 1.1 }}
+                      style={{ fontFamily: 'Audiowide, sans-serif' }}
                     >
-                      {driver.total_points} <span className="text-sm text-gray-400">pts</span>
+                      {driver.total_points}
+                      <span className="text-sm text-gray-400 ml-1" style={{ fontFamily: 'Genos, sans-serif' }}>pts</span>
                     </motion.div>
                   </div>
                 </motion.div>
@@ -651,7 +653,7 @@ export default function Home() {
                     borderLeft: `4px solid ${team.driver_color || '#ff0000'}`,
                   }}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between w-full">
                     <div className="flex items-center">
                       <motion.div 
                         className="text-3xl font-bold mr-4"
@@ -676,24 +678,27 @@ export default function Home() {
                         </div>
                         <div>
                           <h3 
-                            className="text-xl font-medium"
+                            className="text-2xl font-medium"
                             style={{ 
                               color: team.driver_color || '#ff0000',
                               fontFamily: 'Genos, sans-serif',
-                              fontWeight: '600'
+                              fontWeight: '700',
+                              letterSpacing: '0.5px'
                             }}
                           >
                             {team.team}
                           </h3>
-                          <p className="text-gray-400 text-sm">{team.drivers.join(' / ')}</p>
+                          <p className="text-gray-400 text-sm" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{team.drivers.join(' / ')}</p>
                         </div>
                       </div>
                     </div>
                     <motion.div 
-                      className="text-2xl font-['Oxanium'] font-bold text-white tracking-wider"
+                      className="text-2xl font-bold text-white tracking-wider ml-auto"
                       whileHover={{ scale: 1.1 }}
+                      style={{ fontFamily: 'Audiowide, sans-serif' }}
                     >
-                      {team.total_points} <span className="text-sm text-gray-400">pts</span>
+                      {team.total_points}
+                      <span className="text-sm text-gray-400 ml-1" style={{ fontFamily: 'Genos, sans-serif' }}>pts</span>
                     </motion.div>
                   </div>
                 </motion.div>
