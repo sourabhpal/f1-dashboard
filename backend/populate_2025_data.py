@@ -28,7 +28,7 @@ os.makedirs(cache_dir, exist_ok=True)
 fastf1.Cache.enable_cache(cache_dir)
 
 # Database path
-db_path = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+db_path = '/app/data/f1_data.db'
 
 def get_schema_hash():
     """Calculate a hash of the current database schema."""

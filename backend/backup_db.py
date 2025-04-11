@@ -13,7 +13,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Database paths
-DB_PATH = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+DB_PATH = '/app/data/f1_data.db'
 BACKUP_DIR = os.path.join(os.path.dirname(__file__), 'backups')
 
 def create_backup():

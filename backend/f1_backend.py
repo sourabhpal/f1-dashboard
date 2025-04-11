@@ -33,7 +33,8 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
 
 # Database configuration
-DB_PATH = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+DB_PATH = os.getenv('DB_PATH', '/app/data/f1_data.db')
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 # Global lock for database access
 db_lock = threading.Lock()
@@ -587,9 +588,8 @@ async def get_schedule(year: int):
     """Get the race schedule for a specific year."""
     conn = None
     try:
-        # Define database path
-        db_path = os.path.join(os.path.dirname(__file__), 'f1_data.db')
-        conn = sqlite3.connect(db_path)
+        # Use the configured DB_PATH instead of hardcoded path
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
         cursor.execute("""

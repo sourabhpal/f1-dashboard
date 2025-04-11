@@ -32,9 +32,10 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./backend/f1_data.db:/app/f1_data.db
+      - ./backend/data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
+      - DB_PATH=/app/data/f1_data.db
     develop:
       watch:
         - action: rebuild

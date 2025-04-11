@@ -291,14 +291,15 @@ export default function Home() {
             
             {/* Racing dots (mobile-friendly) */}
             <motion.div 
-              className="absolute w-2 h-2 bg-white rounded-full"
+              className="absolute h-1 bg-white/40 rounded-full"
               style={{ 
+                width: '100%',
                 top: '30%',
-                left: '-10px',
-                boxShadow: '0 0 10px rgba(255,255,255,0.8)'
+                left: '-100%',
+                boxShadow: '0 0 15px rgba(255,255,255,0.7)'
               }}
               animate={{ 
-                left: ['-10px', '100%'],
+                left: ['-100%', '100%'],
               }}
               transition={{ 
                 duration: 3,
@@ -307,14 +308,15 @@ export default function Home() {
               }}
             />
             <motion.div 
-              className="absolute w-2 h-2 bg-white rounded-full"
+              className="absolute h-1 bg-white/40 rounded-full"
               style={{ 
+                width: '100%',
                 top: '70%',
-                left: '-10px',
-                boxShadow: '0 0 10px rgba(255,255,255,0.8)'
+                left: '-100%',
+                boxShadow: '0 0 15px rgba(255,255,255,0.7)'
               }}
               animate={{ 
-                left: ['100%', '-10px'],
+                left: ['100%', '-100%'],
               }}
               transition={{ 
                 duration: 3,
@@ -331,6 +333,11 @@ export default function Home() {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
+                style={{ 
+                  textShadow: '0 0 20px rgba(255,255,255,0.3), 0 0 40px rgba(255,0,0,0.5), 0 0 60px rgba(255,0,0,0.3)',
+                  fontFamily: 'Audiowide, sans-serif',
+                  letterSpacing: '1px'
+                }}
               >
                 Monty's F1 Dashboard
               </motion.h1>

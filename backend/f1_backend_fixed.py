@@ -32,7 +32,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
 
 # Database configuration
-DB_PATH = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+DB_PATH = os.getenv('DB_PATH', '/app/data/f1_data.db')
 
 # Global lock for database access
 db_lock = threading.Lock()

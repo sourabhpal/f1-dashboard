@@ -27,16 +27,14 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy requirements.txt to final stage
 COPY --from=builder /app/requirements.txt .
 
-# Create cache directory with proper permissions
-RUN mkdir -p /app/cache && chmod 777 /app/cache
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/cache /app/data && \
+    chmod 777 /app/cache /app/data
 
 # Copy only necessary files
 COPY f1_backend.py .
 COPY populate_2025_data.py .
 COPY populate_historical_data.py .
-
-# Create database directory with proper permissions
-RUN mkdir -p /app/data && chmod 777 /app/data
 
 # Expose port
 EXPOSE 8000

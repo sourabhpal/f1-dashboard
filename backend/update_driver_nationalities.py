@@ -6,8 +6,8 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database path
-db_path = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+# Database path - use the path in the Docker container
+db_path = '/app/data/f1_data.db'
 
 # Driver nationality mapping
 DRIVER_NATIONALITIES = {
@@ -38,6 +38,7 @@ DRIVER_NATIONALITIES = {
 
 def update_driver_nationalities():
     """Update driver nationalities in the database."""
+    conn = None
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()

@@ -22,8 +22,8 @@ cache_dir = os.path.join(os.path.dirname(__file__), 'cache')
 os.makedirs(cache_dir, exist_ok=True)
 fastf1.Cache.enable_cache(cache_dir)
 
-# Database path
-db_path = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+# Database configuration
+DB_PATH = os.getenv('DB_PATH', '/app/data/f1_data.db')
 
 def get_schema_hash():
     """Calculate a hash of the current database schema."""
@@ -86,7 +86,7 @@ def get_schema_hash():
 
 def init_db():
     """Initialize the database with required tables."""
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
     try:
@@ -181,7 +181,7 @@ def init_db():
 
 def get_db_connection():
     """Get a database connection with proper configuration."""
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
