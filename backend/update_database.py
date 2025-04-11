@@ -29,6 +29,7 @@ fastf1.Cache.enable_cache(cache_dir)
 
 # Database path
 db_path = '/app/data/f1_data.db'
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
 # Driver nationality mapping
 DRIVER_NATIONALITIES = {
@@ -65,6 +66,8 @@ def get_schema_hash():
         round INTEGER,
         name TEXT,
         date TEXT,
+        qualifying_date TEXT,
+        sprint_date TEXT,
         event TEXT,
         country TEXT,
         PRIMARY KEY (year, round)
@@ -94,12 +97,18 @@ def get_schema_hash():
         position INTEGER,
         fastest_lap_time TEXT,
         qualifying_position INTEGER,
+        qualifying_time TEXT,
         positions_gained INTEGER,
         pit_stops INTEGER,
         driver_number INTEGER,
         driver_color TEXT,
         nationality TEXT,
+        is_sprint BOOLEAN DEFAULT 0,
         sprint_points INTEGER DEFAULT 0,
+        sprint_position INTEGER,
+        laps INTEGER,
+        status TEXT,
+        grid_position INTEGER,
         PRIMARY KEY (year, round, driver_name)
     );
 
@@ -114,6 +123,9 @@ def get_schema_hash():
         podiums INTEGER,
         fastest_laps INTEGER,
         team_color TEXT,
+        is_sprint BOOLEAN DEFAULT 0,
+        sprint_points INTEGER DEFAULT 0,
+        sprint_position INTEGER,
         PRIMARY KEY (year, round, team)
     );
     """
@@ -161,7 +173,7 @@ def needs_rebuild():
 def init_db(db_path=None):
     """Initialize the database with required tables."""
     if db_path is None:
-        db_path = os.path.join(os.path.dirname(__file__), 'f1_data.db')
+        db_path = '/app/data/f1_data.db'
         
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -177,8 +189,10 @@ def init_db(db_path=None):
                 round INTEGER,
                 name TEXT,
                 date TEXT,
-                event TEXT,
+                qualifying_date TEXT,
+                sprint_date TEXT,
                 country TEXT,
+                is_sprint BOOLEAN DEFAULT 0,
                 PRIMARY KEY (year, round)
             )
         """)
@@ -212,16 +226,22 @@ def init_db(db_path=None):
                 position INTEGER,
                 fastest_lap_time TEXT,
                 qualifying_position INTEGER,
+                qualifying_time TEXT,
                 positions_gained INTEGER,
                 pit_stops INTEGER,
                 driver_number INTEGER,
                 driver_color TEXT,
                 nationality TEXT,
+                is_sprint BOOLEAN DEFAULT 0,
                 sprint_points INTEGER DEFAULT 0,
+                sprint_position INTEGER,
+                laps INTEGER,
+                status TEXT,
+                grid_position INTEGER,
                 PRIMARY KEY (year, round, driver_name)
             )
         """)
-
+        
         # Create constructors_standings table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS constructors_standings (
@@ -235,11 +255,14 @@ def init_db(db_path=None):
                 podiums INTEGER,
                 fastest_laps INTEGER,
                 team_color TEXT,
+                is_sprint BOOLEAN DEFAULT 0,
+                sprint_points INTEGER DEFAULT 0,
+                sprint_position INTEGER,
                 PRIMARY KEY (year, round, team)
             )
         """)
         
-        # Create schema_version table
+        # Create schema_version table if it doesn't exist
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS schema_version (
                 version TEXT PRIMARY KEY
@@ -252,6 +275,8 @@ def init_db(db_path=None):
         # Create indexes for better query performance
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_schedule_year ON race_schedule(year)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_schedule_date ON race_schedule(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_schedule_qualifying_date ON race_schedule(qualifying_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_schedule_sprint_date ON race_schedule(sprint_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_circuits_year ON circuits(year)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_circuits_country ON circuits(country)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_driver_standings_year ON driver_standings(year)")
@@ -458,11 +483,34 @@ def process_race_data(session, round_num, cursor, year=2025, is_sprint=False):
             cursor.executemany("""
                 INSERT INTO driver_standings 
                 (year, round, driver_name, team, points, total_points, position,
-                 fastest_lap_time, qualifying_position, positions_gained, pit_stops,
-                 driver_number, driver_color, nationality, is_sprint, sprint_points,
-                 sprint_position)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, driver_data)
+                 fastest_lap_time, qualifying_position, qualifying_time, positions_gained,
+                 pit_stops, driver_number, driver_color, nationality, is_sprint,
+                 sprint_points, sprint_position, laps, status, grid_position)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, [(
+                year, round_num,
+                driver_name, team,
+                0 if is_sprint else points,  # points
+                0,  # total_points
+                None if is_sprint else position,  # position
+                fastest_lap_time,
+                quali_pos,
+                None,  # qualifying_time
+                positions_gained,
+                pit_stops,
+                driver_number,
+                driver['TeamColor'],
+                nationality,
+                is_sprint,
+                points if is_sprint else 0,  # sprint_points
+                position if is_sprint else None,  # sprint_position
+                None,  # laps
+                None,  # status
+                None  # grid_position
+            ) for (year, round_num, driver_name, team, points, position,
+                   fastest_lap_time, quali_pos, positions_gained,
+                   pit_stops, driver_number, driver_color, nationality, is_sprint,
+                   sprint_points, sprint_position) in driver_data])
         
         # For sprint races, update the team data
         if is_sprint:
@@ -558,6 +606,9 @@ def process_race_data(session, round_num, cursor, year=2025, is_sprint=False):
         # Update total points after each race
         update_total_points(cursor, year)
         
+        # Commit the transaction
+        cursor.connection.commit()
+        
         logger.info(f"Successfully processed {'sprint' if is_sprint else 'race'} data for Round {round_num}")
         
     except Exception as e:
@@ -567,53 +618,62 @@ def process_race_data(session, round_num, cursor, year=2025, is_sprint=False):
 def update_total_points(cursor, year=2025):
     """Update total points for drivers and teams efficiently."""
     try:
-        # Update driver total points
+        # Get all driver points
         cursor.execute("""
-            WITH driver_points AS (
-                SELECT 
-                    driver_name,
-                    round,
-                    SUM(points + sprint_points) OVER (
-                        PARTITION BY driver_name 
-                        ORDER BY round
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                    ) as total_points
-                FROM driver_standings
-                WHERE year = ?
-            )
-            UPDATE driver_standings
-            SET total_points = (
-                SELECT dp.total_points 
-                FROM driver_points dp
-                WHERE dp.driver_name = driver_standings.driver_name
-                AND dp.round = driver_standings.round
-            )
+            SELECT driver_name, round, points, sprint_points
+            FROM driver_standings
             WHERE year = ?
-        """, (year, year))
+            ORDER BY driver_name, round
+        """, (year,))
+        
+        # Calculate cumulative points for each driver
+        driver_points = {}
+        for driver_name, round_num, points, sprint_points in cursor.fetchall():
+            if driver_name not in driver_points:
+                driver_points[driver_name] = {}
+            total = points + (sprint_points or 0)
+            if round_num > 1:
+                total += driver_points[driver_name][round_num - 1]
+            driver_points[driver_name][round_num] = total
+        
+        # Update driver total points
+        for driver_name, rounds in driver_points.items():
+            for round_num, total in rounds.items():
+                cursor.execute("""
+                    UPDATE driver_standings
+                    SET total_points = ?
+                    WHERE year = ? AND round = ? AND driver_name = ?
+                """, (total, year, round_num, driver_name))
+        
+        # Get all team points
+        cursor.execute("""
+            SELECT team, round, points, sprint_points
+            FROM constructors_standings
+            WHERE year = ?
+            ORDER BY team, round
+        """, (year,))
+        
+        # Calculate cumulative points for each team
+        team_points = {}
+        for team, round_num, points, sprint_points in cursor.fetchall():
+            if team not in team_points:
+                team_points[team] = {}
+            total = points + (sprint_points or 0)
+            if round_num > 1:
+                total += team_points[team][round_num - 1]
+            team_points[team][round_num] = total
         
         # Update team total points
-        cursor.execute("""
-            WITH team_points AS (
-                SELECT 
-                    team,
-                    round,
-                    SUM(points + sprint_points) OVER (
-                        PARTITION BY team 
-                        ORDER BY round
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                    ) as total_points
-                FROM constructors_standings
-                WHERE year = ?
-            )
-            UPDATE constructors_standings
-            SET total_points = (
-                SELECT tp.total_points 
-                FROM team_points tp
-                WHERE tp.team = constructors_standings.team
-                AND tp.round = constructors_standings.round
-            )
-            WHERE year = ?
-        """, (year, year))
+        for team, rounds in team_points.items():
+            for round_num, total in rounds.items():
+                cursor.execute("""
+                    UPDATE constructors_standings
+                    SET total_points = ?
+                    WHERE year = ? AND round = ? AND team = ?
+                """, (total, year, round_num, team))
+        
+        # Commit the changes
+        cursor.connection.commit()
         
         logger.info("Successfully updated total points")
         
@@ -650,6 +710,72 @@ def update_driver_nationalities(cursor):
         logger.error(f"Error updating driver nationalities: {str(e)}")
         raise
 
+def process_qualifying_data(session, round_num, cursor, year=2025):
+    """Process qualifying data efficiently."""
+    try:
+        # Get qualifying results
+        results = session.results
+        
+        # Process each driver's qualifying result
+        for _, driver in results.iterrows():
+            driver_name = standardize_driver_name(driver['FullName'])
+            team = driver['TeamName']
+            driver_number = driver['DriverNumber']
+            position = int(driver['Position']) if pd.notna(driver['Position']) else None
+            
+            # Get best qualifying time
+            qualifying_time = None
+            if 'Q3' in driver and pd.notna(driver['Q3']):
+                qualifying_time = str(driver['Q3'])
+            elif 'Q2' in driver and pd.notna(driver['Q2']):
+                qualifying_time = str(driver['Q2'])
+            elif 'Q1' in driver and pd.notna(driver['Q1']):
+                qualifying_time = str(driver['Q1'])
+            
+            # Get nationality from our mapping
+            nationality = DRIVER_NATIONALITIES.get(driver_name, 'Unknown')
+            
+            # Update or insert qualifying data
+            cursor.execute("""
+                INSERT INTO driver_standings 
+                (year, round, driver_name, team, points, total_points, position,
+                 fastest_lap_time, qualifying_position, qualifying_time, positions_gained,
+                 pit_stops, driver_number, driver_color, nationality, is_sprint,
+                 sprint_points, sprint_position, laps, status, grid_position)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(year, round, driver_name) 
+                DO UPDATE SET
+                    qualifying_position = excluded.qualifying_position,
+                    qualifying_time = excluded.qualifying_time,
+                    nationality = excluded.nationality
+            """, (
+                year, round_num,
+                driver_name, team,
+                0,  # points
+                0,  # total_points
+                None,  # position
+                None,  # fastest_lap_time
+                position,  # qualifying_position
+                qualifying_time,
+                None,  # positions_gained
+                None,  # pit_stops
+                driver_number,
+                driver['TeamColor'],
+                nationality,
+                False,  # is_sprint
+                0,  # sprint_points
+                None,  # sprint_position
+                None,  # laps
+                None,  # status
+                None  # grid_position
+            ))
+            
+        logger.info(f"Successfully processed qualifying data for Round {round_num}")
+        
+    except Exception as e:
+        logger.error(f"Error processing qualifying data for Round {round_num}: {str(e)}")
+        raise
+
 def populate_2025_data():
     """Populate the database with 2025 F1 data."""
     try:
@@ -661,38 +787,73 @@ def populate_2025_data():
             cursor.execute("DROP TABLE IF EXISTS race_schedule")
             cursor.execute("DROP TABLE IF EXISTS driver_standings")
             cursor.execute("DROP TABLE IF EXISTS constructors_standings")
+            cursor.execute("DROP TABLE IF EXISTS circuits")
+            cursor.execute("DROP TABLE IF EXISTS race_positions")
             
             # Create tables with updated schema
-            create_tables()
+            init_db()
             
             # Get 2025 schedule
             schedule = fastf1.get_event_schedule(2025)
+            logger.info(f"Schedule columns: {schedule.columns.tolist()}")
+            logger.info(f"First row: {schedule.iloc[0].to_dict()}")
             
             # Get current date
             current_date = datetime.now().date()
             
-            # Process each race
+            # Process each race weekend
             for _, event in schedule.iterrows():
                 round_num = event['RoundNumber']
                 race_date = event['EventDate'].date()
                 
+                # Find qualifying and sprint dates from session information
+                qualifying_date = None
+                sprint_date = None
+                for i in range(1, 6):
+                    session_name = event[f'Session{i}']
+                    session_date = event[f'Session{i}Date']
+                    if pd.notna(session_name) and pd.notna(session_date):
+                        if 'Qualifying' in str(session_name):
+                            qualifying_date = session_date.date()
+                        elif 'Sprint' in str(session_name):
+                            sprint_date = session_date.date()
+                
                 # Store race schedule for ALL races, including future ones
                 cursor.execute("""
                     INSERT OR REPLACE INTO race_schedule
-                    (year, round, name, date, country, is_sprint)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (year, round, name, date, qualifying_date, sprint_date, country, is_sprint)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     2025,
                     round_num,
                     event['EventName'],
                     event['EventDate'].strftime('%Y-%m-%d'),
+                    qualifying_date.strftime('%Y-%m-%d') if qualifying_date else None,
+                    sprint_date.strftime('%Y-%m-%d') if sprint_date else None,
                     event['Country'],
                     event['EventFormat'] in ['sprint', 'sprint_qualifying']
                 ))
                 
-                # Only process race data for races that have already happened
+                # Process qualifying data if it has happened
+                if qualifying_date and qualifying_date <= current_date:
+                    try:
+                        logger.info(f"Loading qualifying session for Round {round_num} ({event['EventName']})")
+                        quali_session = fastf1.get_session(2025, round_num, 'Q')
+                        if quali_session:
+                            logger.info("Qualifying session found, loading data...")
+                            quali_session.load()
+                            logger.info("Processing qualifying data...")
+                            process_qualifying_data(quali_session, round_num, cursor, year=2025)
+                        else:
+                            logger.warning("No qualifying session found")
+                    except Exception as e:
+                        logger.error(f"Error processing qualifying for Round {round_num}: {str(e)}")
+                else:
+                    logger.info(f"Skipping qualifying data for Round {round_num} - Session hasn't happened yet")
+                
+                # Only process race/sprint data for races that have already happened
                 if race_date > current_date:
-                    logger.info(f"Skipping race data for Round {round_num} ({event['EventName']}) - Race hasn't happened yet (scheduled for {race_date})")
+                    logger.info(f"Skipping race data for Round {round_num} ({event['EventName']}) - Race hasn't happened yet")
                     continue
                 
                 try:

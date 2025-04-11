@@ -71,149 +71,6 @@ NATIONALITY_FLAGS = {
     None: '🏳️'
 }
 
-def init_db():
-    """Initialize the database with proper schema and settings."""
-    with db_lock:
-        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        try:
-            # Enable WAL mode for better concurrency
-            conn.execute('PRAGMA journal_mode=WAL')
-            conn.execute('PRAGMA synchronous=NORMAL')
-            conn.execute('PRAGMA temp_store=MEMORY')
-            conn.execute('PRAGMA mmap_size=30000000000')
-            conn.execute('PRAGMA page_size=4096')
-            
-            # Create tables if they don't exist
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS driver_standings (
-                    year INTEGER,
-                    round INTEGER,
-                    position INTEGER,
-                    driver_name TEXT,
-                    team TEXT,
-                    points REAL,
-                    driver_color TEXT,
-                    driver_number INTEGER,
-                    fastest_lap_time TEXT,
-                    qualifying_position INTEGER,
-                    positions_gained INTEGER,
-                    pit_stops INTEGER,
-                    laps INTEGER,
-                    status TEXT,
-                    grid_position INTEGER,
-                    nationality TEXT,
-                    PRIMARY KEY (year, round, driver_name)
-                )
-            ''')
-            
-            # Create race schedule table
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS race_schedule (
-                    year INTEGER,
-                    round INTEGER,
-                    name TEXT,
-                    date TEXT,
-                    country TEXT,
-                    is_sprint BOOLEAN DEFAULT 0,
-                    PRIMARY KEY (year, round)
-                )
-            ''')
-            
-            # Create circuits table if it doesn't exist
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS circuits (
-                    year INTEGER,
-                    round INTEGER,
-                    name TEXT,
-                    country TEXT,
-                    event TEXT,
-                    first_grand_prix TEXT,
-                    circuit_length REAL,
-                    number_of_laps INTEGER,
-                    race_distance REAL,
-                    lap_record TEXT,
-                    drs_zones TEXT,
-                    track_type TEXT,
-                    track_map TEXT,
-                    PRIMARY KEY (year, round)
-                )
-            """)
-            
-            # Create race positions table
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS race_positions (
-                    year INTEGER,
-                    round INTEGER,
-                    driver_abbr TEXT,
-                    positions TEXT,
-                    lap_numbers TEXT,
-                    color TEXT,
-                    driver_name TEXT,
-                    team TEXT,
-                    PRIMARY KEY (year, round, driver_abbr)
-                )
-            ''')
-            
-            # Add indexes for better query performance
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_driver_standings_year_round ON driver_standings(year, round)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_driver_standings_driver ON driver_standings(driver_name)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_driver_standings_team ON driver_standings(team)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_driver_standings_position ON driver_standings(position)')
-            
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_race_schedule_year ON race_schedule(year)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_race_schedule_date ON race_schedule(date)')
-            
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_circuits_year ON circuits(year)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_circuits_country ON circuits(country)')
-            
-            # Check if new columns exist, if not add them
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA table_info(driver_standings)")
-            columns = [column[1] for column in cursor.fetchall()]
-            
-            if 'fastest_lap_time' not in columns:
-                logger.info("Adding fastest_lap_time column to driver_standings table")
-                conn.execute('ALTER TABLE driver_standings ADD COLUMN fastest_lap_time TEXT')
-            
-            if 'qualifying_position' not in columns:
-                logger.info("Adding qualifying_position column to driver_standings table")
-                conn.execute('ALTER TABLE driver_standings ADD COLUMN qualifying_position INTEGER')
-            
-            if 'positions_gained' not in columns:
-                logger.info("Adding positions_gained column to driver_standings table")
-                conn.execute('ALTER TABLE driver_standings ADD COLUMN positions_gained INTEGER')
-            
-            if 'pit_stops' not in columns:
-                logger.info("Adding pit_stops column to driver_standings table")
-                conn.execute('ALTER TABLE driver_standings ADD COLUMN pit_stops INTEGER')
-            
-            if 'laps' not in columns:
-                logger.info("Adding laps column to driver_standings table")
-                conn.execute('ALTER TABLE driver_standings ADD COLUMN laps INTEGER')
-            
-            if 'status' not in columns:
-                logger.info("Adding status column to driver_standings table")
-                conn.execute('ALTER TABLE driver_standings ADD COLUMN status TEXT')
-            
-            if 'grid_position' not in columns:
-                logger.info("Adding grid_position column to driver_standings table")
-                conn.execute('ALTER TABLE driver_standings ADD COLUMN grid_position INTEGER')
-            
-            if 'nationality' not in columns:
-                logger.info("Adding nationality column to driver_standings table")
-                conn.execute('ALTER TABLE driver_standings ADD COLUMN nationality TEXT')
-            
-            # Add index for race positions
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_race_positions_year_round ON race_positions(year, round)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_race_positions_driver ON race_positions(driver_abbr)')
-            
-            conn.commit()
-        finally:
-            conn.close()
-
-# Initialize database on startup
-init_db()
-
 @contextlib.contextmanager
 def get_db_connection():
     """Get a database connection with proper thread safety."""
@@ -223,7 +80,75 @@ def get_db_connection():
     finally:
         conn.close()
 
-# Add this function after the imports and before the first route
+def init_db():
+    """Initialize the database with required tables."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Create driver_standings table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS driver_standings (
+                    year INTEGER,
+                    round INTEGER,
+                    driver_name TEXT,
+                    team TEXT,
+                    points INTEGER,
+                    total_points INTEGER,
+                    position INTEGER,
+                    fastest_lap_time TEXT,
+                    qualifying_position INTEGER,
+                    qualifying_time TEXT,
+                    positions_gained INTEGER,
+                    pit_stops INTEGER,
+                    driver_number TEXT,
+                    driver_color TEXT,
+                    nationality TEXT,
+                    is_sprint INTEGER DEFAULT 0,
+                    sprint_points INTEGER DEFAULT 0,
+                    sprint_position INTEGER,
+                    laps INTEGER,
+                    status TEXT,
+                    grid_position INTEGER,
+                    PRIMARY KEY (year, round, driver_name)
+                )
+            ''')
+            
+            # Create constructors_standings table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS constructors_standings (
+                    year INTEGER,
+                    round INTEGER,
+                    team TEXT,
+                    points INTEGER,
+                    total_points INTEGER,
+                    position INTEGER,
+                    wins INTEGER,
+                    podiums INTEGER,
+                    fastest_laps INTEGER,
+                    team_color TEXT,
+                    is_sprint INTEGER DEFAULT 0,
+                    sprint_points INTEGER DEFAULT 0,
+                    PRIMARY KEY (year, round, team)
+                )
+            ''')
+            
+            # Create indexes
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_driver_standings_year ON driver_standings(year)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_driver_standings_driver ON driver_standings(driver_name)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_driver_standings_team ON driver_standings(team)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_constructors_standings_year ON constructors_standings(year)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_constructors_standings_team ON constructors_standings(team)')
+            
+            conn.commit()
+            logging.info("Database initialized successfully")
+    except Exception as e:
+        logging.error(f"Error initializing database: {str(e)}")
+        raise
+
+# Initialize database on startup
+init_db()
+
 def standardize_team_color(color):
     """Standardize team color format to ensure it has a '#' prefix."""
     if not color or pd.isna(color):
@@ -2309,6 +2234,8 @@ def create_tables():
                 round INTEGER,
                 name TEXT,
                 date TEXT,
+                qualifying_date TEXT,
+                sprint_date TEXT,
                 country TEXT,
                 is_sprint BOOLEAN DEFAULT 0,
                 PRIMARY KEY (year, round)
@@ -2327,14 +2254,18 @@ def create_tables():
                 position INTEGER,
                 fastest_lap_time TEXT,
                 qualifying_position INTEGER,
+                qualifying_time TEXT,
                 positions_gained INTEGER,
                 pit_stops INTEGER,
-                driver_number INTEGER,
+                driver_number TEXT,
                 driver_color TEXT,
                 nationality TEXT,
-                is_sprint BOOLEAN DEFAULT 0,
+                is_sprint INTEGER DEFAULT 0,
                 sprint_points INTEGER DEFAULT 0,
                 sprint_position INTEGER,
+                laps INTEGER,
+                status TEXT,
+                grid_position INTEGER,
                 PRIMARY KEY (year, round, driver_name)
             )
         """)
@@ -2352,9 +2283,8 @@ def create_tables():
                 podiums INTEGER,
                 fastest_laps INTEGER,
                 team_color TEXT,
-                is_sprint BOOLEAN DEFAULT 0,
+                is_sprint INTEGER DEFAULT 0,
                 sprint_points INTEGER DEFAULT 0,
-                sprint_position INTEGER,
                 PRIMARY KEY (year, round, team)
             )
         """)
