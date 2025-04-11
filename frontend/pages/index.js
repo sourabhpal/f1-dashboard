@@ -168,25 +168,18 @@ export default function Home() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-red-600 to-red-800 rounded-xl p-8 shadow-xl max-w-7xl mx-auto mb-12 relative overflow-hidden"
+          className="bg-gray-900/80 backdrop-blur-sm rounded-xl p-8 shadow-xl max-w-7xl mx-auto mb-12 relative overflow-hidden border border-gray-800"
         >
-          {/* Animated background elements */}
+          {/* Animated racing lines */}
           <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-xl"></div>
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-xl"></div>
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-60 h-60 bg-white/5 rounded-full blur-2xl"></div>
-          </div>
-          
-          {/* Racing line animation */}
-          <div className="absolute inset-0 overflow-hidden">
-            {/* Primary racing lines */}
+            {/* Primary racing line */}
             <motion.div 
-              className="absolute h-1 bg-white/40 rounded-full"
+              className="absolute h-0.5 bg-[#E10600]/30 rounded-full"
               style={{ 
                 width: '100%', 
                 top: '25%',
                 left: '-100%',
-                boxShadow: '0 0 15px rgba(255,255,255,0.7)'
+                boxShadow: '0 0 15px rgba(225,6,0,0.3)'
               }}
               animate={{ 
                 left: ['-100%', '100%'],
@@ -198,12 +191,12 @@ export default function Home() {
               }}
             />
             <motion.div 
-              className="absolute h-1 bg-white/40 rounded-full"
+              className="absolute h-0.5 bg-[#E10600]/30 rounded-full"
               style={{ 
                 width: '100%', 
                 top: '75%',
                 left: '-100%',
-                boxShadow: '0 0 15px rgba(255,255,255,0.7)'
+                boxShadow: '0 0 15px rgba(225,6,0,0.3)'
               }}
               animate={{ 
                 left: ['100%', '-100%'],
@@ -215,14 +208,14 @@ export default function Home() {
               }}
             />
             
-            {/* Secondary racing lines (thinner, slower) */}
+            {/* Secondary racing lines */}
             <motion.div 
-              className="absolute h-0.5 bg-white/20 rounded-full"
+              className="absolute h-0.5 bg-[#E10600]/20 rounded-full"
               style={{ 
                 width: '100%', 
                 top: '40%',
                 left: '-100%',
-                boxShadow: '0 0 8px rgba(255,255,255,0.4)'
+                boxShadow: '0 0 8px rgba(225,6,0,0.2)'
               }}
               animate={{ 
                 left: ['-100%', '100%'],
@@ -234,144 +227,51 @@ export default function Home() {
               }}
             />
             <motion.div 
-              className="absolute h-0.5 bg-white/20 rounded-full"
+              className="absolute h-0.5 bg-[#E10600]/20 rounded-full"
               style={{ 
                 width: '100%', 
                 top: '60%',
                 left: '-100%',
-                boxShadow: '0 0 8px rgba(255,255,255,0.4)'
+                boxShadow: '0 0 8px rgba(225,6,0,0.2)'
               }}
               animate={{ 
                 left: ['100%', '-100%'],
               }}
               transition={{ 
                 duration: 3.5,
-                repeat: Infinity,
-                ease: "linear"
-              }}
-            />
-            
-            {/* Mobile-optimized racing lines (hidden on larger screens) */}
-            <div className="md:hidden">
-              <motion.div 
-                className="absolute h-0.5 bg-white/30 rounded-full"
-                style={{ 
-                  width: '100%', 
-                  top: '15%',
-                  left: '-100%',
-                  boxShadow: '0 0 10px rgba(255,255,255,0.5)'
-                }}
-                animate={{ 
-                  left: ['-100%', '100%'],
-                }}
-                transition={{ 
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "linear"
-                }}
-              />
-              <motion.div 
-                className="absolute h-0.5 bg-white/30 rounded-full"
-                style={{ 
-                  width: '100%', 
-                  top: '85%',
-                  left: '-100%',
-                  boxShadow: '0 0 10px rgba(255,255,255,0.5)'
-                }}
-                animate={{ 
-                  left: ['100%', '-100%'],
-                }}
-                transition={{ 
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "linear"
-                }}
-              />
-            </div>
-            
-            {/* Racing dots (mobile-friendly) */}
-            <motion.div 
-              className="absolute h-1 bg-white/40 rounded-full"
-              style={{ 
-                width: '100%',
-                top: '30%',
-                left: '-100%',
-                boxShadow: '0 0 15px rgba(255,255,255,0.7)'
-              }}
-              animate={{ 
-                left: ['-100%', '100%'],
-              }}
-              transition={{ 
-                duration: 3,
-                repeat: Infinity,
-                ease: "linear"
-              }}
-            />
-            <motion.div 
-              className="absolute h-1 bg-white/40 rounded-full"
-              style={{ 
-                width: '100%',
-                top: '70%',
-                left: '-100%',
-                boxShadow: '0 0 15px rgba(255,255,255,0.7)'
-              }}
-              animate={{ 
-                left: ['100%', '-100%'],
-              }}
-              transition={{ 
-                duration: 3,
                 repeat: Infinity,
                 ease: "linear"
               }}
             />
           </div>
           
-          <div className="flex flex-col md:flex-row items-center justify-between relative z-10">
-            <div className="text-center md:text-left mb-4 md:mb-0">
-              <motion.h1 
-                className="text-4xl md:text-5xl font-bold text-white mb-3 page-title"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
+          <div className="flex flex-col items-center justify-center relative z-10">
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-center mb-3"
+            >
+              <h1 
+                className="text-4xl md:text-5xl font-bold page-title"
                 style={{ 
-                  textShadow: '0 0 20px rgba(255,255,255,0.3), 0 0 40px rgba(255,0,0,0.5), 0 0 60px rgba(255,0,0,0.3)',
+                  color: '#E10600',
+                  textShadow: '0 0 20px rgba(225,6,0,0.3)',
                   fontFamily: 'Audiowide, sans-serif',
                   letterSpacing: '1px'
                 }}
               >
                 Monty's F1 Dashboard
-              </motion.h1>
-              <motion.p 
-                className="text-gray-200 text-lg md:text-xl"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-              >
-                Comprehensive Formula 1 statistics, race results, and analysis
-              </motion.p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <motion.div 
-                className="bg-white/10 rounded-lg p-4 backdrop-blur-sm hover:bg-white/20 transition-all duration-300"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <span className="text-3xl">🏎️</span>
-              </motion.div>
-              <motion.div 
-                className="bg-white/10 rounded-lg p-4 backdrop-blur-sm hover:bg-white/20 transition-all duration-300"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                <span className="text-3xl">📊</span>
-              </motion.div>
-            </div>
+              </h1>
+            </motion.div>
+            <motion.p 
+              className="text-gray-300 text-lg md:text-xl text-center max-w-2xl"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              Comprehensive Formula 1 statistics, race results, and analysis
+            </motion.p>
           </div>
         </motion.div>
       </div>

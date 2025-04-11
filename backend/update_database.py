@@ -2,13 +2,13 @@ import fastf1
 import pandas as pd
 import sqlite3
 import logging
-from datetime import datetime
 import os
 import time
 import hashlib
 import numpy as np
 import shutil
 from tqdm import tqdm
+from datetime import datetime
 from f1_backend import create_tables, get_db_connection, calculate_points
 
 # Configure logging with a cleaner format
@@ -29,6 +29,33 @@ fastf1.Cache.enable_cache(cache_dir)
 
 # Database path
 db_path = '/app/data/f1_data.db'
+
+# Driver nationality mapping
+DRIVER_NATIONALITIES = {
+    # 2025 Drivers
+    'Lando Norris': 'British',
+    'Max Verstappen': 'Dutch',
+    'George Russell': 'British',
+    'Kimi Antonelli': 'Italian',
+    'Alexander Albon': 'Thai',
+    'Lance Stroll': 'Canadian',
+    'Nico Hulkenberg': 'German',
+    'Charles Leclerc': 'Monegasque',
+    'Oscar Piastri': 'Australian',
+    'Lewis Hamilton': 'British',
+    'Pierre Gasly': 'French',
+    'Yuki Tsunoda': 'Japanese',
+    'Esteban Ocon': 'French',
+    'Oliver Bearman': 'British',
+    'Liam Lawson': 'New Zealander',
+    'Gabriel Bortoleto': 'Brazilian',
+    'Fernando Alonso': 'Spanish',
+    'Carlos Sainz': 'Spanish',
+    'Jack Doohan': 'Australian',
+    'Isack Hadjar': 'French',
+    
+    # Add more drivers as needed
+}
 
 def get_schema_hash():
     """Calculate a hash of the current database schema."""
@@ -299,33 +326,32 @@ def standardize_driver_name(name):
 def process_race_data(session, round_num, cursor, year=2025, is_sprint=False):
     """Process race data efficiently in batches."""
     try:
-        # Get qualifying positions
-        quali_positions = {}
-        try:
-            quali_session = fastf1.get_session(year, round_num, 'Q')
-            quali_session.load()
-            for _, driver in quali_session.results.iterrows():
-                quali_positions[driver['DriverNumber']] = driver['Position']
-        except Exception as e:
-            logger.warning(f"Error getting qualifying data for round {round_num}: {str(e)}")
-
-        # Process race results
+        # Get results
+        results = session.results
+        
+        # Initialize data containers
         driver_data = []
         team_data = {}
-
-        for _, driver in session.results.iterrows():
-            driver_number = driver['DriverNumber']
+        
+        # Process each driver
+        for _, driver in results.iterrows():
             driver_name = standardize_driver_name(driver['FullName'])
             team = driver['TeamName']
-            position = driver['Position']
-            
-            # Calculate positions gained
-            quali_pos = quali_positions.get(driver_number, position)
-            positions_gained = quali_pos - position
-            
-            # Get pit stops efficiently
+            driver_number = driver['DriverNumber']
+            position = int(driver['Position']) if pd.notna(driver['Position']) else 99
+            quali_pos = None
+            positions_gained = 0
             pit_stops = 0
-            fastest_lap_time = 'N/A'
+            fastest_lap_time = None
+            
+            # Get qualifying position if available
+            if hasattr(session, 'qualifying') and session.qualifying is not None:
+                quali_results = session.qualifying.results
+                if not quali_results.empty:
+                    quali_driver = quali_results[quali_results['DriverNumber'] == driver_number]
+                    if not quali_driver.empty:
+                        quali_pos = int(quali_driver.iloc[0]['Position'])
+                        positions_gained = quali_pos - position if position != 99 else 0
             
             try:
                 # Try to get driver laps first
@@ -361,6 +387,9 @@ def process_race_data(session, round_num, cursor, year=2025, is_sprint=False):
             # Calculate points based on position and race type
             points = calculate_points(position, is_fastest_lap=(fastest_lap_time == "Fastest Lap"), is_sprint=is_sprint)
             
+            # Get nationality from our mapping
+            nationality = DRIVER_NATIONALITIES.get(driver_name, 'Unknown')
+            
             # Check if a record exists for this driver in this round
             cursor.execute("""
                 SELECT points, sprint_points, is_sprint
@@ -377,18 +406,20 @@ def process_race_data(session, round_num, cursor, year=2025, is_sprint=False):
                         UPDATE driver_standings
                         SET sprint_points = ?,
                             sprint_position = ?,
-                            is_sprint = 1
+                            is_sprint = 1,
+                            nationality = ?
                         WHERE year = ? AND round = ? AND driver_name = ?
-                    """, (points, position, year, round_num, driver_name))
+                    """, (points, position, nationality, year, round_num, driver_name))
                 else:
                     # Update race points
                     cursor.execute("""
                         UPDATE driver_standings
                         SET points = ?,
                             position = ?,
-                            is_sprint = 0
+                            is_sprint = 0,
+                            nationality = ?
                         WHERE year = ? AND round = ? AND driver_name = ?
-                    """, (points, position, year, round_num, driver_name))
+                    """, (points, position, nationality, year, round_num, driver_name))
             else:
                 # Create new record
                 driver_data.append((
@@ -398,7 +429,7 @@ def process_race_data(session, round_num, cursor, year=2025, is_sprint=False):
                     None if is_sprint else position,  # position (main race)
                     fastest_lap_time, quali_pos, positions_gained,
                     pit_stops, driver_number, driver['TeamColor'],
-                    driver.get('Nationality', 'Unknown'), is_sprint,
+                    nationality, is_sprint,
                     points if is_sprint else 0,  # sprint points
                     position if is_sprint else None  # sprint position
                 ))
@@ -590,6 +621,35 @@ def update_total_points(cursor, year=2025):
         logger.error(f"Error updating total points: {str(e)}")
         raise
 
+def update_driver_nationalities(cursor):
+    """Update driver nationalities in the database."""
+    try:
+        # Get all unique drivers
+        cursor.execute("""
+            SELECT DISTINCT driver_name 
+            FROM driver_standings
+        """)
+        drivers = cursor.fetchall()
+        
+        # Update nationalities
+        updated_count = 0
+        for (driver_name,) in drivers:
+            if driver_name in DRIVER_NATIONALITIES:
+                nationality = DRIVER_NATIONALITIES[driver_name]
+                cursor.execute("""
+                    UPDATE driver_standings
+                    SET nationality = ?
+                    WHERE driver_name = ?
+                """, (nationality, driver_name))
+                updated_count += 1
+                logger.info(f"Updated nationality for {driver_name} to {nationality}")
+        
+        logger.info(f"Updated nationalities for {updated_count} drivers")
+        
+    except Exception as e:
+        logger.error(f"Error updating driver nationalities: {str(e)}")
+        raise
+
 def populate_2025_data():
     """Populate the database with 2025 F1 data."""
     try:
@@ -664,9 +724,13 @@ def populate_2025_data():
                     logger.error(f"Error processing Round {round_num}: {str(e)}")
                     continue
             
+            # Update driver nationalities
+            logger.info("Updating driver nationalities...")
+            update_driver_nationalities(cursor)
+            
             conn.commit()
             
-        logger.info("Successfully populated 2025 data")
+        logger.info("Successfully populated 2025 data with nationalities")
         
     except Exception as e:
         logger.error(f"Error populating 2025 data: {str(e)}")

@@ -20,6 +20,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install sqlite3
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -33,11 +38,17 @@ RUN mkdir -p /app/cache /app/data && \
 
 # Copy only necessary files
 COPY f1_backend.py .
-COPY populate_2025_data.py .
-COPY populate_historical_data.py .
+COPY update_database.py .
 
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "f1_backend:app", "--host", "0.0.0.0", "--port", "8000"] 
+# Run database population check and start the application
+CMD /bin/bash -c '\
+    if [ ! -f /app/data/f1_data.db ] || [ $(sqlite3 /app/data/f1_data.db "SELECT COUNT(*) FROM race_schedule WHERE year = 2025" 2>/dev/null || echo 0) -lt 24 ]; then \
+        echo "Database needs to be populated or updated..." && \
+        python update_database.py; \
+    else \
+        echo "Database already populated."; \
+    fi && \
+    exec uvicorn f1_backend:app --host 0.0.0.0 --port 8000' 
