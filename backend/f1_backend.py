@@ -33,7 +33,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 fastf1.Cache.enable_cache(CACHE_DIR)
 
 # Database configuration
-DB_PATH = os.getenv('DB_PATH', '/app/data/f1_data.db')
+DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'f1_data.db')
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 # Global lock for database access
@@ -110,6 +110,7 @@ def init_db():
                     laps INTEGER,
                     status TEXT,
                     grid_position INTEGER,
+                    fastest_lap_count INTEGER DEFAULT 0,
                     PRIMARY KEY (year, round, driver_name)
                 )
             ''')
@@ -129,6 +130,7 @@ def init_db():
                     team_color TEXT,
                     is_sprint INTEGER DEFAULT 0,
                     sprint_points INTEGER DEFAULT 0,
+                    sprint_position INTEGER,
                     PRIMARY KEY (year, round, team)
                 )
             ''')
@@ -1101,51 +1103,23 @@ async def get_circuit_preview(year: int):
 
 @app.get("/race-results/{year}/{round}")
 async def get_race_results(year: int, round: int, is_sprint: bool = False):
-    """Get detailed race results for a specific race."""
     try:
-        # For 2025 data, use the database
-        if year == 2025:
-            conn = sqlite3.connect(DB_PATH)
+        # Get race info
+        race_info = get_race_info(year, round)
+        if not race_info:
+            raise HTTPException(status_code=404, detail=f"No race found for {year} round {round}")
+
+        # Get results from database
+        with get_db_connection() as conn:
             cursor = conn.cursor()
-
-            # Get race info
             cursor.execute("""
-                SELECT name, date, country
-                FROM race_schedule
-                WHERE year = ? AND round = ?
-            """, (year, round))
-            race_info = cursor.fetchone()
-
-            if not race_info:
-                raise HTTPException(status_code=404, detail="Race not found")
-
-            # Get driver standings with all necessary fields
-            cursor.execute("""
-                SELECT
-                    ds.position,
-                    ds.driver_name,
-                    ds.team,
-                    ds.points,
-                    COALESCE(ds.laps, 0) as laps,
-                    COALESCE(ds.status, 'Finished') as status,
-                    COALESCE(ds.grid_position, ds.position) as grid_position,
-                    COALESCE(ds.pit_stops, 0) as pit_stops,
-                    COALESCE(ds.fastest_lap_time, 'N/A') as fastest_lap_time,
-                    COALESCE(ds.driver_color, '#ff0000') as driver_color,
-                    COALESCE(cs.team_color, ds.driver_color, '#ff0000') as team_color,
-                    COALESCE(ds.qualifying_position, ds.grid_position) as qualifying_position,
-                    ds.nationality,
-                    ds.sprint_position,
-                    ds.sprint_points
+                SELECT ds.position, ds.driver_name, ds.team, ds.points, ds.laps, ds.status,
+                       ds.grid_position, ds.pit_stops, ds.fastest_lap_time, ds.driver_color,
+                       ds.team_color, ds.qualifying_position, ds.nationality, ds.sprint_position,
+                       ds.sprint_points, ds.fastest_lap_count
                 FROM driver_standings ds
-                LEFT JOIN constructors_standings cs
-                    ON ds.year = cs.year 
-                    AND ds.round = cs.round 
-                    AND ds.team = cs.team
-                    AND ds.is_sprint = cs.is_sprint
-                WHERE ds.year = ? 
-                    AND ds.round = ? 
-                    AND ds.is_sprint = ?
+                WHERE ds.year = ? AND ds.round = ?
+                AND ds.is_sprint = ?
                 ORDER BY ds.position
             """, (year, round, is_sprint))
 
@@ -1157,6 +1131,7 @@ async def get_race_results(year: int, round: int, is_sprint: bool = False):
                 nationality = row[12]
                 sprint_position = row[13]
                 sprint_points = row[14]
+                fastest_lap_count = row[15]
 
                 # Transform status
                 status_display = '🏁' if status == 'Finished' else status
@@ -1196,7 +1171,8 @@ async def get_race_results(year: int, round: int, is_sprint: bool = False):
                     'nationality': nationality,
                     'nationality_flag': NATIONALITY_FLAGS.get(nationality, '🏳️'),
                     'sprint_position': sprint_position,
-                    'sprint_points': sprint_points
+                    'sprint_points': sprint_points,
+                    'fastest_lap_count': fastest_lap_count
                 })
 
             conn.close()
@@ -1204,93 +1180,12 @@ async def get_race_results(year: int, round: int, is_sprint: bool = False):
                 'race_name': f"Sprint - {race_info[0]}" if is_sprint else race_info[0],
                 'date': race_info[1],
                 'country': race_info[2],
-                'is_sprint': is_sprint,
-                'results': results
-            }
-        else:
-            # For historical years (e.g., 2020-2024), use FastF1 API
-            session = fastf1.get_session(year, round, 'R')
-            session.load(laps=True, weather=False, messages=False)
-
-            race_info = {
-                'race_name': session.event['EventName'],
-                'date': session.date.strftime('%Y-%m-%d'),
-                'country': session.event['Country']
-            }
-
-            quali_positions = {}
-            try:
-                quali_session = fastf1.get_session(year, round, 'Q')
-                quali_session.load(telemetry=False, laps=False, weather=False)
-                if quali_session.results is not None: quali_positions = dict(zip(quali_session.results['DriverNumber'], quali_session.results['Position']))
-            except Exception as e: logger.warning(f"Could not load qualifying data for {year} Round {round}: {str(e)}")
-
-            results = []
-            if session.results is None: raise HTTPException(status_code=404, detail=f"No race results found for {year} round {round}")
-
-            for _, driver_result in session.results.iterrows():
-                driver_number = driver_result['DriverNumber']
-                driver_info = session.get_driver(driver_number) # Contains Nationality
-                driver_laps = session.laps.pick_drivers(driver_number)
-
-                # Get Nationality
-                nationality = driver_info.get('Nationality')
-
-                # Transform Status
-                status = driver_result['Status']
-                status_display = '🏁' if status == 'Finished' else status
-
-                # Fastest Lap (existing logic)
-                fastest_lap = driver_laps['LapTime'].min() if not driver_laps.empty else pd.NaT
-                fastest_lap_str = 'N/A'
-                if pd.notnull(fastest_lap): fastest_lap_str = str(fastest_lap)[-11:-4]
-
-                # Pit Stops (existing logic)
-                pit_stops = 0
-                if session.laps is not None and 'PitOutTime' in session.laps.columns: pit_stops = driver_laps['PitOutTime'].notna().sum()
-                else: pit_stops = 2 # Fallback
-
-                # Colors (existing logic)
-                raw_team_color = driver_result.get('TeamColor', 'ff0000')
-                team_color = standardize_team_color(raw_team_color)
-                driver_color = team_color # Use team color for driver color
-
-                # Positions (existing logic)
-                position = int(driver_result['Position']) if pd.notna(driver_result['Position']) else 99
-                qualifying_pos = quali_positions.get(driver_number)
-                grid_position = qualifying_pos if qualifying_pos is not None else position # Fallback grid to quali or final pos
-                positions_gained = grid_position - position if grid_position is not None and position != 99 else 0
-
-                results.append({
-                    'position': position,
-                    'driver': driver_result['FullName'],
-                    'team': driver_result['TeamName'],
-                    'points': driver_result['Points'],
-                    'laps': len(driver_laps),
-                    'status': status_display, # Use transformed status
-                    'grid': grid_position,
-                    'pit_stops': pit_stops,
-                    'fastest_lap': fastest_lap_str,
-                    'driver_color': driver_color,
-                    'team_color': team_color,
-                    'positions_gained': positions_gained,
-                    'qualifying_position': qualifying_pos,
-                    'nationality': nationality, # Include original nationality
-                    'nationality_flag': NATIONALITY_FLAGS.get(nationality, '🏳️') # Add flag
-                })
-
-            results.sort(key=lambda x: x['position'])
-            return {
-                'race_name': race_info['race_name'],
-                'date': race_info['date'],
-                'country': race_info['country'],
                 'results': results
             }
 
     except Exception as e:
         logger.error(f"Error fetching race results: {str(e)}")
-        import traceback; logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Failed to fetch race results")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/circuits/{year}")
 async def get_circuits(year: int):
@@ -2266,6 +2161,7 @@ def create_tables():
                 laps INTEGER,
                 status TEXT,
                 grid_position INTEGER,
+                fastest_lap_count INTEGER DEFAULT 0,
                 PRIMARY KEY (year, round, driver_name)
             )
         """)
@@ -2285,6 +2181,7 @@ def create_tables():
                 team_color TEXT,
                 is_sprint INTEGER DEFAULT 0,
                 sprint_points INTEGER DEFAULT 0,
+                sprint_position INTEGER,
                 PRIMARY KEY (year, round, team)
             )
         """)

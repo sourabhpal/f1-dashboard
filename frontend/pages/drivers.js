@@ -246,86 +246,54 @@ export default function Drivers() {
   
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-75">
-        <div 
-          className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative"
-          style={{ 
-            borderLeft: `2px solid ${driver.driver_color}`,
-            borderTop: `2px solid ${driver.driver_color}`,
-            borderRadius: '1rem'
-          }}
-        >
+        <div className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative">
           {/* Close button */}
-          <button 
+          <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+            className="absolute top-4 right-4 text-gray-400 hover:text-white"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          
-          {/* Header */}
-          <div className="p-6 border-b border-gray-800 flex flex-col md:flex-row items-center md:items-start gap-4">
-            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
-              <Image
-                src={getDriverImagePath(driver.driver_name)}
-                alt={driver.driver_name}
-                width={96}
-                height={96}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = '/images/drivers/default.png';
-                }}
-              />
-            </div>
-            <div className="flex-1 text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-2">
-                <h2 className="text-2xl font-bold text-white" style={{ color: driver.driver_color }}>{formatDriverName(driver.driver_name)}</h2>
-                {driver.nationality_flag && (
-                  <span className="text-2xl">{driver.nationality_flag}</span>
-                )}
-              </div>
-              <p className="text-gray-400">{driver.team}</p>
-              <div className="flex items-center justify-center md:justify-start gap-2">
-                <p className="text-gray-500">Championship Position: {driver.position || 'N/A'}</p>
+
+          {/* Driver header */}
+          <div className="p-6 border-b border-gray-800">
+            <div className="flex items-center">
+              <div
+                className="w-12 h-12 rounded-full mr-4"
+                style={{ backgroundColor: driver.driver_color }}
+              ></div>
+              <div>
+                <h2 className="text-2xl font-bold text-white">{formatDriverName(driver.driver_name)}</h2>
+                <p className="text-gray-400">{driver.team}</p>
               </div>
             </div>
           </div>
-          
+
           {/* Tabs */}
           <div className="border-b border-gray-800">
-            <div className="flex overflow-x-auto">
+            <div className="flex">
               <button
                 className={`px-6 py-3 text-sm font-medium ${
-                  activeTab === 'race' 
-                    ? 'text-white border-b-2' 
-                    : 'text-gray-400 hover:text-white'
+                  activeTab === 'race' ? 'text-white border-b-2 border-blue-500' : 'text-gray-400'
                 }`}
-                style={{ 
-                  borderColor: activeTab === 'race' ? driver.driver_color : 'transparent'
-                }}
                 onClick={() => setActiveTab('race')}
               >
-                Race Performance
+                Race Stats
               </button>
               <button
                 className={`px-6 py-3 text-sm font-medium ${
-                  activeTab === 'qualifying' 
-                    ? 'text-white border-b-2' 
-                    : 'text-gray-400 hover:text-white'
+                  activeTab === 'qualifying' ? 'text-white border-b-2 border-blue-500' : 'text-gray-400'
                 }`}
-                style={{ 
-                  borderColor: activeTab === 'qualifying' ? driver.driver_color : 'transparent'
-                }}
                 onClick={() => setActiveTab('qualifying')}
               >
-                Qualifying Performance
+                Qualifying
               </button>
-              {/* Add more tabs here for future enhancements */}
             </div>
           </div>
-          
-          {/* Tab Content */}
+
+          {/* Content */}
           <div className="p-6">
             {activeTab === 'race' && (
               <div className="space-y-6">
@@ -333,47 +301,87 @@ export default function Drivers() {
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-3">Race Results</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    <StatCard label="Wins" value={stats.wins} />
-                    <StatCard label="Podiums" value={stats.podiums} />
+                    <StatCard label="Wins" value={stats.wins || 0} />
+                    <StatCard label="Podiums" value={stats.podiums || 0} />
                     <StatCard label="Points" value={driver.total_points || 0} />
-                    <StatCard label="Races" value={stats.total_races} />
+                    <StatCard label="Races" value={stats.total_races || 0} />
                   </div>
                 </div>
-                
-                {/* Race Performance */}
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-3">Race Performance</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    <StatCard label="Fastest Laps" value={stats.fastest_laps} />
-                    <StatCard label="Laps Led" value={stats.laps_led} />
-                    <StatCard label="Lead Lap %" value={`${stats.lead_lap_percentage}%`} />
-                    <StatCard label="Avg. Position" value={stats.average_race_position} />
-                  </div>
-                </div>
-                
-                {/* Overtaking */}
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-3">Overtaking</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    <StatCard label="Positions Gained" value={stats.positions_gained} />
-                    <StatCard label="Avg. Positions Gained" value={stats.average_positions_gained} />
+
+                {/* Race Results Table */}
+                <div className="bg-gray-800 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Race Results</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left border-b border-gray-700">
+                          <th className="p-3">Round</th>
+                          <th className="p-3">Race</th>
+                          <th className="p-3">Position</th>
+                          <th className="p-3">Points</th>
+                          <th className="p-3">Sprint Points</th>
+                          <th className="p-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.race_results?.map((result) => (
+                          <tr key={result.round} className="border-b border-gray-700">
+                            <td className="p-3">{result.round}</td>
+                            <td className="p-3">{result.race_name}</td>
+                            <td className="p-3">{result.position || 'DNF'}</td>
+                            <td className="p-3">{result.points || 0}</td>
+                            <td className="p-3">{result.sprint_points || 0}</td>
+                            <td className="p-3">{result.status || 'Finished'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
             )}
-            
+
             {activeTab === 'qualifying' && (
               <div className="space-y-6">
-                {/* Qualifying Performance */}
+                {/* Qualifying Stats */}
                 <div>
                   <h3 className="text-lg font-semibold text-white mb-3">Qualifying Performance</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    <StatCard label="Pole Positions" value={stats.pole_positions} />
-                    <StatCard label="Avg. Qualifying" value={stats.average_qualifying_position} />
-                    <StatCard label="Q3 Appearances" value={stats.q3_appearances} />
-                    <StatCard label="Q2 Appearances" value={stats.q2_appearances} />
-                    <StatCard label="Q1 Eliminations" value={stats.q1_eliminations} />
-                    <StatCard label="Qual vs Race Diff" value={stats.qualifying_vs_race_diff} />
+                    <StatCard label="Pole Positions" value={stats.pole_positions || 0} />
+                    <StatCard label="Avg. Qualifying" value={stats.avg_qualifying || '-'} />
+                    <StatCard label="Q3 Appearances" value={stats.q3_appearances || 0} />
+                    <StatCard label="Q2 Appearances" value={stats.q2_appearances || 0} />
+                  </div>
+                </div>
+
+                {/* Qualifying Results Table */}
+                <div className="bg-gray-800 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Qualifying Results</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left border-b border-gray-700">
+                          <th className="p-3">Round</th>
+                          <th className="p-3">Race</th>
+                          <th className="p-3">Position</th>
+                          <th className="p-3">Q1</th>
+                          <th className="p-3">Q2</th>
+                          <th className="p-3">Q3</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.qualifying_results?.map((result) => (
+                          <tr key={result.round} className="border-b border-gray-700">
+                            <td className="p-3">{result.round}</td>
+                            <td className="p-3">{result.race_name}</td>
+                            <td className="p-3">{result.position || '-'}</td>
+                            <td className="p-3">{result.q1 || '-'}</td>
+                            <td className="p-3">{result.q2 || '-'}</td>
+                            <td className="p-3">{result.q3 || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>

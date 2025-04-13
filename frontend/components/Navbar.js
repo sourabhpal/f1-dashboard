@@ -37,6 +37,9 @@ export default function Navbar() {
               <Link href="/drivers" className="text-gray-300 hover:text-white transition-colors nav-link font-goldman">
                 Drivers
               </Link>
+              <Link href="/fastf1" className="text-gray-300 hover:text-white transition-colors nav-link font-goldman">
+                FastF1
+              </Link>
             </div>
           </div>
 
@@ -85,6 +88,9 @@ export default function Navbar() {
             </Link>
             <Link href="/drivers" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50 nav-link font-goldman">
               Drivers
+            </Link>
+            <Link href="/fastf1" className="text-gray-300 hover:text-red-500 block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 hover:bg-gray-800/50 nav-link font-goldman">
+              FastF1
             </Link>
           </div>
         </div>
