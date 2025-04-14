@@ -89,6 +89,7 @@ const formatDriverName = (fullName) => {
 
 export default function Home() {
   const [standings, setStandings] = useState([]);
+  const [teamStandings, setTeamStandings] = useState([]);
   const [nextRace, setNextRace] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -106,10 +107,16 @@ export default function Home() {
       setError(null);
       try {
         // Fetch standings
-        const standingsResponse = await fetch(`${API_URL}/standings/2025`);
+        const [standingsResponse, teamStandingsResponse] = await Promise.all([
+          fetch(`${API_URL}/standings/2025`),
+          fetch(`${API_URL}/team_standings/2025`)
+        ]);
         if (!standingsResponse.ok) throw new Error('Failed to fetch standings');
+        if (!teamStandingsResponse.ok) throw new Error('Failed to fetch team standings');
         const standingsData = await standingsResponse.json();
+        const teamStandingsData = await teamStandingsResponse.json();
         setStandings(standingsData);
+        setTeamStandings(teamStandingsData);
 
         // Fetch next race
         const scheduleResponse = await fetch(`${API_URL}/schedule/2025`);
@@ -525,26 +532,7 @@ export default function Home() {
               <span className="mr-2">🏆</span> Constructor Standings
             </h3>
             <div className="grid gap-5">
-              {Object.values(standings.reduce((acc, driver) => {
-                const team = driver.team;
-                if (!acc[team]) {
-                  acc[team] = {
-                    team: team,
-                    total_points: 0,
-                    drivers: [],
-                    driver_color: driver.driver_color
-                  };
-                }
-                // Only add points and driver if not already added
-                if (!acc[team].drivers.includes(driver.driver_name)) {
-                  acc[team].total_points += driver.total_points;
-                  acc[team].drivers.push(driver.driver_name);
-                }
-                return acc;
-              }, {}))
-              .sort((a, b) => b.total_points - a.total_points)
-              .slice(0, 3)
-              .map((team, index) => (
+              {teamStandings.slice(0, 3).map((team, index) => (
                 <motion.div
                   key={team.team}
                   initial={{ opacity: 0, y: 20 }}
@@ -557,14 +545,14 @@ export default function Home() {
                   }}
                   className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-5 shadow-lg hover:shadow-xl transition-shadow duration-300 h-24 flex items-center"
                   style={{
-                    borderLeft: `4px solid ${team.driver_color || '#ff0000'}`,
+                    borderLeft: `4px solid ${team.team_color || '#ff0000'}`,
                   }}
                 >
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center">
                       <motion.div 
                         className="text-3xl font-bold mr-4"
-                        style={{ color: team.driver_color || '#ff0000' }}
+                        style={{ color: team.team_color || '#ff0000' }}
                         whileHover={{ scale: 1.1 }}
                       >
                         {index + 1}
@@ -587,7 +575,7 @@ export default function Home() {
                           <h3 
                             className="text-2xl font-medium"
                             style={{ 
-                              color: team.driver_color || '#ff0000',
+                              color: team.team_color || '#ff0000',
                               fontFamily: 'Genos, sans-serif',
                               fontWeight: '700',
                               letterSpacing: '0.5px'
@@ -595,7 +583,6 @@ export default function Home() {
                           >
                             {team.team}
                           </h3>
-                          <p className="text-gray-400 text-sm" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{team.drivers.join(' / ')}</p>
                         </div>
                       </div>
                     </div>

@@ -82,17 +82,17 @@ export default function Drivers() {
         // Create a map of driver standings for easy lookup
         const standingsMap = {};
         standingsData.forEach(standing => {
-          standingsMap[standing.driver_name] = standing;
+          standingsMap[standing.standardized_driver_name || standing.driver_name] = standing;
         });
         
         // Merge drivers data with standings data
         const mergedDrivers = driversData.map(driver => {
-          const standing = standingsMap[driver.driver_name] || {};
+          const standing = standingsMap[driver.standardized_driver_name || driver.driver_name] || {};
           return {
             ...driver,
             total_points: standing.total_points || 0,
             points: standing.points || 0,
-            sprintPoints: standing.sprint_points || 0,
+            sprint_points: standing.sprint_points || 0,
             position: standing.position || null,
             races_participated: standing.races_participated || 0
           };
@@ -535,11 +535,17 @@ export default function Drivers() {
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
                       <p className="text-gray-400 text-xs group-hover:text-gray-300 transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Points</p>
-                      <p className="text-white font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.total_points || 0}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-xs group-hover:text-gray-300 transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Races</p>
-                      <p className="text-white font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>{driver.races_participated || 0}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-white font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+                          {driver.total_points || 0} pts
+                          {driver.sprint_points > 0 && (
+                            <span className="ml-2 text-sm text-gray-400">(Sprint: {driver.sprint_points})</span>
+                          )}
+                        </p>
+                        <p className="text-white font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+                          {driver.races_participated || 0} races
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

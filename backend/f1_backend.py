@@ -10,10 +10,18 @@ import os
 import logging
 from datetime import datetime, timedelta
 import json
+import matplotlib.pyplot as plt
+from io import BytesIO
+import base64
+from tqdm import tqdm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Define database path
+db_path = os.path.join(os.path.dirname(__file__), 'data', 'f1_data.db')
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -73,12 +81,25 @@ NATIONALITY_FLAGS = {
 
 @contextlib.contextmanager
 def get_db_connection():
-    """Get a database connection with proper thread safety."""
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    """Get a database connection with proper timeout and locking settings."""
+    conn = None
     try:
+        conn = sqlite3.connect(
+            db_path,
+            timeout=30,  # 30 second timeout
+            check_same_thread=False  # Allow multiple threads to access the database
+        )
+        # Enable WAL mode for better concurrency
+        conn.execute("PRAGMA journal_mode=WAL")
+        # Set busy timeout
+        conn.execute("PRAGMA busy_timeout=30000")  # 30 seconds
         yield conn
+    except Exception as e:
+        logger.error(f"Error connecting to database: {str(e)}")
+        raise
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def init_db():
     """Initialize the database with required tables."""
@@ -92,6 +113,7 @@ def init_db():
                     year INTEGER,
                     round INTEGER,
                     driver_name TEXT,
+                    standardized_driver_name TEXT,
                     team TEXT,
                     points INTEGER,
                     total_points INTEGER,
@@ -111,7 +133,7 @@ def init_db():
                     status TEXT,
                     grid_position INTEGER,
                     fastest_lap_count INTEGER DEFAULT 0,
-                    PRIMARY KEY (year, round, driver_name)
+                    PRIMARY KEY (year, round, standardized_driver_name)
                 )
             ''')
             
@@ -397,7 +419,7 @@ async def get_standings(year: int):
                     lt.nationality,
                     cp.total_points,
                     cp.races_participated,
-                    COALESCE(SUM(sprint_points), 0) as sprint_points,
+                    cp.total_sprint_points as sprint_points,
                     DENSE_RANK() OVER (
                         ORDER BY cp.total_points DESC,
                         cp.races_participated DESC,
@@ -1912,23 +1934,24 @@ async def get_drivers(year: int):
                     WITH latest_driver AS (
                         SELECT
                             driver_name,
+                            standardized_driver_name,
                             team,
                             driver_number,
                             driver_color,
-                            nationality, -- Ensure nationality is selected
+                            nationality,
                             MAX(round) as max_round
                         FROM driver_standings
                         WHERE year = ?
-                        GROUP BY driver_name
+                        GROUP BY standardized_driver_name
                     )
                     SELECT DISTINCT
                         ld.driver_name,
                         ld.team,
                         ld.driver_number,
                         ld.driver_color,
-                        ld.nationality -- Select nationality
+                        ld.nationality
                     FROM latest_driver ld
-                    ORDER BY ld.driver_name
+                    ORDER BY ld.standardized_driver_name
                 """, (year,))
 
                 results = cursor.fetchall()
@@ -1936,7 +1959,7 @@ async def get_drivers(year: int):
                 # Convert tuples to dictionaries
                 formatted_results = []
                 for row in results:
-                    driver_name = standardize_driver_name(row[0])
+                    driver_name = row[0]
                     team = row[1]
                     driver_color = standardize_team_color(row[3])
                     nationality = row[4] # Get nationality
@@ -2143,6 +2166,7 @@ def create_tables():
                 year INTEGER,
                 round INTEGER,
                 driver_name TEXT,
+                standardized_driver_name TEXT,
                 team TEXT,
                 points INTEGER,
                 total_points INTEGER,
@@ -2162,7 +2186,7 @@ def create_tables():
                 status TEXT,
                 grid_position INTEGER,
                 fastest_lap_count INTEGER DEFAULT 0,
-                PRIMARY KEY (year, round, driver_name)
+                PRIMARY KEY (year, round, standardized_driver_name)
             )
         """)
         
@@ -2187,6 +2211,51 @@ def create_tables():
         """)
         
         conn.commit()
+
+def cleanup_duplicate_drivers():
+    """Clean up duplicate driver entries in the database."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # First, get all unique driver names
+            cursor.execute("""
+                SELECT DISTINCT driver_name 
+                FROM driver_standings 
+                WHERE standardized_driver_name IS NULL
+            """)
+            drivers = cursor.fetchall()
+            
+            # Update standardized names for each driver
+            for (driver_name,) in drivers:
+                standardized_name = standardize_driver_name(driver_name)
+                cursor.execute("""
+                    UPDATE driver_standings 
+                    SET standardized_driver_name = ?
+                    WHERE driver_name = ? AND standardized_driver_name IS NULL
+                """, (standardized_name, driver_name))
+            
+            # Now delete duplicates, keeping the latest entry
+            cursor.execute("""
+                DELETE FROM driver_standings
+                WHERE rowid NOT IN (
+                    SELECT MAX(rowid)
+                    FROM driver_standings
+                    GROUP BY year, round, standardized_driver_name
+                )
+            """)
+            
+            conn.commit()
+            logger.info("Successfully cleaned up duplicate driver entries")
+            
+    except Exception as e:
+        logger.error(f"Error cleaning up duplicate drivers: {str(e)}")
+        raise
+
+# Add this to the startup event
+@app.on_event("startup")
+async def startup_event():
+    cleanup_duplicate_drivers()
 
 if __name__ == "__main__":
     import uvicorn

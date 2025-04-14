@@ -142,7 +142,7 @@ export default function Standings() {
                 <div className="grid gap-4">
                   {driverStandings.map((standing, index) => (
                     <motion.div
-                      key={standing.driver_name}
+                      key={standing.standardized_driver_name || standing.driver_name}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
@@ -154,7 +154,7 @@ export default function Standings() {
                           <div className="flex items-center space-x-4">
                             <div className="relative w-12 h-12 bg-gray-700 rounded-lg p-1">
                               <Image
-                                src={`/images/drivers/${standing.driver_name.toLowerCase().replace(/\s+/g, '-')}.png`}
+                                src={`/images/drivers/${(standing.standardized_driver_name || standing.driver_name).toLowerCase().replace(/\s+/g, '-')}.png`}
                                 alt={`${standing.driver_name}`}
                                 fill
                                 sizes="48px"
@@ -180,8 +180,16 @@ export default function Standings() {
                             </div>
                           </div>
                         </div>
-                        <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
-                          {standing.total_points} <span className="text-sm text-gray-400">pts</span>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-white tracking-wider" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+                            {standing.total_points} <span className="text-sm text-gray-400">pts</span>
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            <span>Race: {standing.points}</span>
+                            {standing.sprint_points > 0 && (
+                              <span className="ml-2">Sprint: {standing.sprint_points}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </motion.div>
