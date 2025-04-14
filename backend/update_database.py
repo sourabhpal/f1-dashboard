@@ -403,15 +403,128 @@ def get_race_results(year, round, race_type='race'):
         logger.error(f"Error getting {race_type} results for {year} Round {round}: {str(e)}")
         return None
 
-def process_race_data(conn, year, round, race_type='race'):
+def validate_and_repair_sprint_data(conn, year, round_num, race_name):
+    """Validate and repair sprint data for a specific race."""
+    try:
+        cursor = conn.cursor()
+        
+        # Check if sprint data exists
+        cursor.execute("""
+            SELECT COUNT(*) FROM driver_standings
+            WHERE year = ? AND round = ? AND is_sprint = 1
+        """, (year, round_num))
+        
+        count = cursor.fetchone()[0]
+        if count == 0:
+            logger.warning(f"No sprint records found for {race_name} (Round {round_num})")
+            return False
+        
+        # Check if sprint points were assigned
+        cursor.execute("""
+            SELECT COUNT(*) FROM driver_standings
+            WHERE year = ? AND round = ? AND is_sprint = 1 AND sprint_points > 0
+        """, (year, round_num))
+        
+        points_count = cursor.fetchone()[0]
+        if points_count == 0:
+            logger.warning(f"No sprint points assigned for {race_name} (Round {round_num})")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error validating sprint data: {str(e)}")
+        return False
+
+def repair_sprint_data(conn, year, round_num, race_name):
+    """Repair missing or incorrect sprint data for a specific race."""
+    try:
+        cursor = conn.cursor()
+        
+        # Load sprint session data
+        session = load_session_data(year, round_num, 'S')
+        if not session:
+            logger.error(f"Could not load sprint session for Round {round_num}")
+            return False
+        
+        # Start a transaction for this race
+        cursor.execute("BEGIN TRANSACTION")
+        
+        # Process each driver's sprint result
+        for _, driver in session.results.iterrows():
+            try:
+                driver_name = standardize_driver_name(driver['FullName'])
+                team = driver['TeamName']
+                position = int(driver['Position']) if pd.notna(driver['Position']) else None
+                status = driver['Status'] if 'Status' in driver else 'Finished'
+                
+                # Calculate sprint points
+                points = 0
+                if position is not None:
+                    if position == 1:
+                        points = 8
+                    elif position == 2:
+                        points = 7
+                    elif position == 3:
+                        points = 6
+                    elif position == 4:
+                        points = 5
+                    elif position == 5:
+                        points = 4
+                    elif position == 6:
+                        points = 3
+                    elif position == 7:
+                        points = 2
+                    elif position == 8:
+                        points = 1
+                
+                # First, try to update existing record
+                cursor.execute("""
+                    UPDATE driver_standings
+                    SET sprint_points = ?,
+                        sprint_position = ?,
+                        is_sprint = 1
+                    WHERE year = ? AND round = ? AND standardized_driver_name = ?
+                """, (points, position, year, round_num, driver_name))
+                
+                # If no record was updated, insert a new one
+                if cursor.rowcount == 0:
+                    cursor.execute("""
+                        INSERT INTO driver_standings (
+                            year, round, driver_name, standardized_driver_name, team,
+                            points, total_points, position, status, is_sprint,
+                            sprint_points, sprint_position
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        year, round_num, driver['FullName'], driver_name, team,
+                        0, 0, None, status, 1,
+                        points, position
+                    ))
+                
+            except Exception as e:
+                logger.error(f"Error processing driver {driver.get('FullName', 'Unknown')}: {str(e)}")
+                continue
+        
+        # Commit the transaction for this race
+        conn.commit()
+        logger.info(f"Successfully repaired sprint data for Round {round_num}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error repairing sprint data for Round {round_num}: {str(e)}")
+        conn.rollback()
+        return False
+
+def process_race_data(conn, year, round_num, race_type='race'):
     """Process race data for both sprint and main race."""
     try:
         cursor = conn.cursor()
         
         # Get race data
-        session = load_session_data(year, round, race_type)
+        session = load_session_data(year, round_num, race_type)
         if not session:
-            logger.error(f"No session data found for {year} Round {round} ({race_type})")
+            logger.error(f"No session data found for {year} Round {round_num} ({race_type})")
             return
             
         # Get qualifying positions for positions gained calculation
@@ -445,7 +558,7 @@ def process_race_data(conn, year, round, race_type='race'):
                 
                 # Create new record
                 driver_data.append((
-                    year, round, driver_name, standardized_name, team,
+                    year, round_num, driver_name, standardized_name, team,
                     race_points,  # race points
                     0,  # total_points will be updated later
                     None if race_type == 'sprint' else position,  # position (main race)
@@ -544,7 +657,7 @@ def process_race_data(conn, year, round, race_type='race'):
             cursor.execute("""
                 SELECT COUNT(*) FROM constructors_standings 
                 WHERE year = ? AND round = ? AND team = ?
-            """, (year, round, team))
+            """, (year, round_num, team))
             
             if cursor.fetchone()[0] > 0:
                 # Update existing record
@@ -564,7 +677,7 @@ def process_race_data(conn, year, round, race_type='race'):
                         data['wins'],
                         data['podiums'],
                         data['fastest_laps'],
-                        year, round, team
+                        year, round_num, team
                     ))
                 else:  # sprint
                     cursor.execute('''
@@ -576,7 +689,7 @@ def process_race_data(conn, year, round, race_type='race'):
                     ''', (
                         data['sprint_points'],
                         data['position'],
-                        year, round, team
+                        year, round_num, team
                     ))
             else:
                 # Insert new record
@@ -586,7 +699,7 @@ def process_race_data(conn, year, round, race_type='race'):
                      fastest_laps, team_color, is_sprint, sprint_position)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    year, round, team,
+                    year, round_num, team,
                     data['points'] if race_type == 'race' else 0,
                     data['sprint_points'] if race_type == 'sprint' else 0,
                     data['position'],
@@ -602,10 +715,10 @@ def process_race_data(conn, year, round, race_type='race'):
         update_total_points(cursor, year)
         
         conn.commit()
-        logger.info(f"Successfully processed {race_type} data for {year} Round {round}")
+        logger.info(f"Successfully processed {race_type} data for {year} Round {round_num}")
         
     except Exception as e:
-        logger.error(f"Error processing {race_type} data for {year} Round {round}: {str(e)}")
+        logger.error(f"Error processing {race_type} data for {year} Round {round_num}: {str(e)}")
         conn.rollback()
         raise
 
@@ -888,6 +1001,11 @@ def populate_2025_data():
                             sprint_session.load()
                             logger.info("Processing sprint race data...")
                             process_race_data(conn, 2025, round_num, 'sprint')
+                            
+                            # Validate and repair sprint data if needed
+                            if not validate_and_repair_sprint_data(conn, 2025, round_num, event['EventName']):
+                                logger.info("Issues found in sprint data, attempting to repair...")
+                                repair_sprint_data(conn, 2025, round_num, event['EventName'])
                         else:
                             logger.warning("No sprint session found")
                     
@@ -909,12 +1027,6 @@ def populate_2025_data():
             # Update driver nationalities
             logger.info("Updating driver nationalities...")
             update_driver_nationalities(cursor)
-            
-            # Validate and repair sprint data
-            logger.info("Validating sprint data...")
-            if not validate_sprint_data():
-                logger.info("Issues found in sprint data, attempting to repair...")
-                repair_sprint_data()
             
             conn.commit()
             

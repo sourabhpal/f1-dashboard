@@ -190,7 +190,7 @@ export default function Drivers() {
   const DriverCard = ({ driver }) => {
     return (
       <motion.div
-        className="bg-white rounded-lg shadow-md p-4 cursor-pointer relative overflow-hidden"
+        className="bg-gray-800 rounded-lg shadow-lg p-6 cursor-pointer relative overflow-hidden"
         onClick={() => handleDriverClick(driver)}
         whileHover={{ 
           scale: 1.02,
@@ -209,30 +209,60 @@ export default function Drivers() {
           whileHover={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
         />
-        <div className="flex items-center justify-between mb-2 relative z-10">
-          <div className="flex items-center">
+        
+        <div className="flex items-center justify-between mb-4 relative z-10">
+          <div className="flex items-center space-x-4">
             <div
-              className="w-8 h-8 rounded-full mr-2"
+              className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
               style={{ backgroundColor: driver.driver_color }}
-            ></div>
+            >
+              {driver.position || '-'}
+            </div>
             <div>
-              <h3 className="font-semibold">{driver.driver_name}</h3>
-              <p className="text-sm text-gray-500">{driver.team}</p>
+              <h3 className="text-xl font-semibold text-white">{formatDriverName(driver.driver_name)}</h3>
+              <p className="text-gray-400">{driver.team}</p>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-sm font-medium text-gray-900">P{driver.position || '-'}</div>
-            <div className="text-sm text-gray-500">{driver.total_points || 0} pts</div>
+        </div>
+
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm text-gray-400">Total Points</div>
+            <div className="flex items-center space-x-2">
+              <div className="text-2xl font-bold text-white">{driver.total_points || 0}</div>
+              <span className="text-sm text-gray-400">pts</span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gray-700/50 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-400">Race</div>
+                <div className="text-lg font-semibold text-white">{driver.points || 0}</div>
+              </div>
+            </div>
+            <div className="bg-gray-700/50 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-400">Sprint</div>
+                <div className="text-lg font-semibold text-white">{driver.sprint_points || 0}</div>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="flex justify-between text-sm text-gray-500 relative z-10">
-          <div className="flex items-center">
-            <span className="mr-1">#{driver.driver_number || '-'}</span>
+
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-400 relative z-10">
+          <div className="flex items-center space-x-2">
+            <span>#{driver.driver_number || '-'}</span>
             {driver.nationality_flag && (
               <span className="text-base">{driver.nationality_flag}</span>
             )}
           </div>
-          <div>{driver.races_participated || 0} races</div>
+          <div className="flex items-center space-x-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <span>{driver.races_participated || 0} races</span>
+          </div>
         </div>
       </motion.div>
     );
@@ -536,15 +566,26 @@ export default function Drivers() {
                     <div>
                       <p className="text-gray-400 text-xs group-hover:text-gray-300 transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>Points</p>
                       <div className="flex items-center justify-between">
-                        <p className="text-white font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
-                          {driver.total_points || 0} pts
-                          {driver.sprint_points > 0 && (
-                            <span className="ml-2 text-sm text-gray-400">(Sprint: {driver.sprint_points})</span>
-                          )}
-                        </p>
-                        <p className="text-white font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
-                          {driver.races_participated || 0} races
-                        </p>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-white text-xl font-bold group-hover:text-white transition-colors duration-300" style={{ fontFamily: 'Roboto Variable, sans-serif' }}>
+                            {driver.total_points || 0}
+                          </span>
+                          <span className="text-gray-400 text-sm">pts</span>
+                        </div>
+                        {driver.sprint_points > 0 && (
+                          <div className="flex items-center space-x-1">
+                            <span className="text-gray-400 text-sm">Sprint:</span>
+                            <span className="text-white text-sm font-medium">{driver.sprint_points}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <div className="flex items-center space-x-1">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span className="text-gray-400 text-sm">{driver.races_participated || 0} races</span>
                       </div>
                     </div>
                   </div>

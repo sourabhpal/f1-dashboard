@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import time
 from f1_backend import get_db_connection, calculate_points, standardize_driver_name
 import fastf1
 import os
@@ -103,6 +104,9 @@ def repair_sprint_data():
                         logger.error(f"Could not load sprint session for Round {round_num}")
                         continue
                     
+                    # Start a transaction for this race
+                    cursor.execute("BEGIN TRANSACTION")
+                    
                     # Process each driver's sprint result
                     for _, driver in session.results.iterrows():
                         try:
@@ -131,34 +135,58 @@ def repair_sprint_data():
                                 elif position == 8:
                                     points = 1
                             
-                            # Update or insert sprint data
+                            # First, try to update existing record
                             cursor.execute("""
-                                INSERT INTO driver_standings (
-                                    year, round, driver_name, standardized_driver_name, team,
-                                    points, total_points, position, status, is_sprint,
-                                    sprint_points, sprint_position
-                                )
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                ON CONFLICT(year, round, standardized_driver_name) 
-                                DO UPDATE SET
-                                    sprint_points = excluded.sprint_points,
-                                    sprint_position = excluded.sprint_position,
+                                UPDATE driver_standings
+                                SET sprint_points = ?,
+                                    sprint_position = ?,
                                     is_sprint = 1
-                            """, (
-                                year, round_num, driver['FullName'], driver_name, team,
-                                0, 0, None, status, 1,
-                                points, position
-                            ))
+                                WHERE year = ? AND round = ? AND standardized_driver_name = ?
+                            """, (points, position, year, round_num, driver_name))
                             
+                            # If no record was updated, insert a new one
+                            if cursor.rowcount == 0:
+                                cursor.execute("""
+                                    INSERT INTO driver_standings (
+                                        year, round, driver_name, standardized_driver_name, team,
+                                        points, total_points, position, status, is_sprint,
+                                        sprint_points, sprint_position
+                                    )
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    year, round_num, driver['FullName'], driver_name, team,
+                                    0, 0, None, status, 1,
+                                    points, position
+                                ))
+                            
+                        except sqlite3.OperationalError as e:
+                            if "database is locked" in str(e):
+                                logger.warning(f"Database locked while processing {driver.get('FullName', 'Unknown')}, retrying...")
+                                time.sleep(1)  # Wait a bit before retrying
+                                continue
+                            else:
+                                logger.error(f"Error processing driver {driver.get('FullName', 'Unknown')}: {str(e)}")
+                                continue
                         except Exception as e:
                             logger.error(f"Error processing driver {driver.get('FullName', 'Unknown')}: {str(e)}")
                             continue
                     
+                    # Commit the transaction for this race
                     conn.commit()
                     logger.info(f"Successfully repaired sprint data for Round {round_num}")
                     
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e):
+                        logger.warning(f"Database locked while processing Round {round_num}, retrying...")
+                        time.sleep(2)  # Wait longer before retrying the entire race
+                        continue
+                    else:
+                        logger.error(f"Error repairing sprint data for Round {round_num}: {str(e)}")
+                        conn.rollback()
+                        continue
                 except Exception as e:
                     logger.error(f"Error repairing sprint data for Round {round_num}: {str(e)}")
+                    conn.rollback()
                     continue
             
             return True
